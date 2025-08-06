@@ -2,53 +2,59 @@
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Create Your Character - Dungeon Crawler</title>
+    <title>Create Character - Dungeon Crawler</title>
   </head>
   <body>
     <h1>Create Your Character</h1>
+
     <input id="charName" type="text" placeholder="Character Name" />
-    <button onclick="createCharacter()">Create</button>
+    <button id="createBtn">Create Character</button>
 
     <script type="module">
       import { createClient } from 'https://esm.sh/@supabase/supabase-js';
 
       const supabase = createClient(
-        'https://YOUR_PROJECT.supabase.co',
-        'YOUR_PUBLIC_ANON_KEY'
+        'https://fqegrllwoskrfcnmzlod.supabase.co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
       );
 
-      const {
-        data: { user },
-        error,
-      } = await supabase.auth.getUser();
-
-      if (error || !user) {
+      // Get user from localStorage
+      const userStr = localStorage.getItem('user');
+      if (!userStr) {
         window.location.href = 'login.html';
       }
+      const user = JSON.parse(userStr);
 
-      window.createCharacter = async () => {
-        const name = document.getElementById('charName').value;
-        if (!name) return alert('Please enter a character name.');
+      document
+        .getElementById('createBtn')
+        .addEventListener('click', async () => {
+          const name = document.getElementById('charName').value.trim();
+          if (!name) {
+            alert('Please enter a character name.');
+            return;
+          }
 
-        const { error } = await supabase.from('characters').insert([
-          {
-            user_id: user.id,
-            name,
-            level: 1,
-            hp_current: 10,
-            hp_max: 10,
-            armor_hp: 5,
-            armor_state: 'Intact',
-            stripping_stage: 'Fully Clothed',
-          },
-        ]);
+          // Insert new character tied to user.id
+          const { data, error } = await supabase.from('characters').insert([
+            {
+              user_id: user.id,
+              name: name,
+              level: 1,
+              hp_current: 100,
+              hp_max: 100,
+              armor_hp: 50,
+              armor_state: 'intact',
+              stripping_stage: 0,
+            },
+          ]);
 
-        if (error) {
-          alert('Error creating character: ' + error.message);
-        } else {
-          window.location.href = 'character.html';
-        }
-      };
+          if (error) {
+            alert('Error creating character: ' + error.message);
+          } else {
+            alert('Character created!');
+            window.location.href = 'character.html';
+          }
+        });
     </script>
   </body>
 </html>

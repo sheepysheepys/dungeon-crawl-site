@@ -1,17 +1,14 @@
-<!-- login.html -->
 <!DOCTYPE html>
 <html>
   <head>
     <meta charset="UTF-8" />
-    <title>Login - Dungeon Crawler</title>
+    <title>Dungeon Crawler - Home</title>
   </head>
   <body>
-    <h1>Login</h1>
+    <h1>Welcome to Dungeon Crawler!</h1>
 
-    <input id="email" type="email" placeholder="Email" />
-    <input id="password" type="password" placeholder="Password" />
-    <button onclick="login()">Login</button>
-    <button onclick="signup()">Sign Up</button>
+    <div id="welcome-message">Loading user info...</div>
+    <button id="logout-btn">Logout</button>
 
     <script type="module">
       import { createClient } from 'https://esm.sh/@supabase/supabase-js';
@@ -21,36 +18,29 @@
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
       );
 
-      window.login = async () => {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email,
-          password,
-        });
+      // Get user info from localStorage
+      const userStr = localStorage.getItem('user');
 
-        if (error) {
-          alert('Login failed: ' + error.message);
-        } else {
-          alert('Logged in!');
-          window.location.href = 'character.html';
-        }
-      };
+      if (!userStr) {
+        // No user stored, redirect to login
+        window.location.href = 'login.html';
+      } else {
+        const user = JSON.parse(userStr);
 
-      window.signup = async () => {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        const { data, error } = await supabase.auth.signUp({
-          email,
-          password,
-        });
+        // Show welcome message
+        document.getElementById(
+          'welcome-message'
+        ).textContent = `Welcome back, ${user.email}!`;
 
-        if (error) {
-          alert('Signup failed: ' + error.message);
-        } else {
-          alert('Account created! You can now log in.');
-        }
-      };
+        // Logout handler
+        document
+          .getElementById('logout-btn')
+          .addEventListener('click', async () => {
+            await supabase.auth.signOut();
+            localStorage.removeItem('user');
+            window.location.href = 'login.html';
+          });
+      }
     </script>
   </body>
 </html>
