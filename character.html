@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Your Character - Dungeon Crawler</title>
+  </head>
+  <body>
+    <div id="character-info">Loading your character...</div>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+
+      const supabase = createClient(
+        'https://fqegrllwoskrfcnmzlod.supabase.co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
+      );
+
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        window.location.href = 'login.html';
+      } else {
+        const { data: characters, error: charError } = await supabase
+          .from('characters')
+          .select('*')
+          .eq('user_id', user.id)
+          .single();
+
+        if (!characters) {
+          // No character yet, send them to create one
+          window.location.href = 'create-character.html';
+        } else {
+          // Show character info
+          const char = characters;
+          document.getElementById('character-info').innerHTML = `
+          <h2>${char.name}</h2>
+          <p>Level: ${char.level}</p>
+          <p>HP: ${char.hp_current} / ${char.hp_max}</p>
+          <p>Armor: ${char.armor_hp} (${char.armor_state})</p>
+          <p>Stripping Status: ${char.stripping_stage}</p>
+          <!-- Add inventory, achievements, etc., here -->
+        `;
+        }
+      }
+    </script>
+  </body>
+</html>

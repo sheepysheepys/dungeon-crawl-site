@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Create Your Character - Dungeon Crawler</title>
+  </head>
+  <body>
+    <h1>Create Your Character</h1>
+    <input id="charName" type="text" placeholder="Character Name" />
+    <button onclick="createCharacter()">Create</button>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+
+      const supabase = createClient(
+        'https://YOUR_PROJECT.supabase.co',
+        'YOUR_PUBLIC_ANON_KEY'
+      );
+
+      const {
+        data: { user },
+        error,
+      } = await supabase.auth.getUser();
+
+      if (error || !user) {
+        window.location.href = 'login.html';
+      }
+
+      window.createCharacter = async () => {
+        const name = document.getElementById('charName').value;
+        if (!name) return alert('Please enter a character name.');
+
+        const { error } = await supabase.from('characters').insert([
+          {
+            user_id: user.id,
+            name,
+            level: 1,
+            hp_current: 10,
+            hp_max: 10,
+            armor_hp: 5,
+            armor_state: 'Intact',
+            stripping_stage: 'Fully Clothed',
+          },
+        ]);
+
+        if (error) {
+          alert('Error creating character: ' + error.message);
+        } else {
+          window.location.href = 'character.html';
+        }
+      };
+    </script>
+  </body>
+</html>

@@ -1,15 +1,56 @@
+<!-- login.html -->
 <!DOCTYPE html>
-<html lang="en">
+<html>
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Dungeon Crawl Character Sheet</title>
-    <link rel="stylesheet" href="style.css" />
+    <title>Login - Dungeon Crawler</title>
   </head>
   <body>
-    <h1>Welcome to the Dungeon Crawl!</h1>
-    <p>This will be your character management and gear tracking site.</p>
+    <h1>Login</h1>
 
-    <script src="script.js"></script>
+    <input id="email" type="email" placeholder="Email" />
+    <input id="password" type="password" placeholder="Password" />
+    <button onclick="login()">Login</button>
+    <button onclick="signup()">Sign Up</button>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+
+      const supabase = createClient(
+        'https://fqegrllwoskrfcnmzlod.supabase.co',
+        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
+      );
+
+      window.login = async () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) {
+          alert('Login failed: ' + error.message);
+        } else {
+          alert('Logged in!');
+          window.location.href = 'character.html';
+        }
+      };
+
+      window.signup = async () => {
+        const email = document.getElementById('email').value;
+        const password = document.getElementById('password').value;
+        const { data, error } = await supabase.auth.signUp({
+          email,
+          password,
+        });
+
+        if (error) {
+          alert('Signup failed: ' + error.message);
+        } else {
+          alert('Account created! You can now log in.');
+        }
+      };
+    </script>
   </body>
 </html>
