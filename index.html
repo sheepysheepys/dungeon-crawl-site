@@ -5,11 +5,6 @@
     <title>Dungeon Crawler - Home</title>
   </head>
   <body>
-    <h1>Welcome to Dungeon Crawler!</h1>
-
-    <div id="welcome-message">Loading user info...</div>
-    <button id="logout-btn">Logout</button>
-
     <script type="module">
       import { createClient } from 'https://esm.sh/@supabase/supabase-js';
 
@@ -18,28 +13,14 @@
         'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
       );
 
-      // Get user info from localStorage
       const userStr = localStorage.getItem('user');
 
       if (!userStr) {
         // No user stored, redirect to login
-        window.location.href = 'character.html';
+        window.location.href = 'login.html';
       } else {
-        const user = JSON.parse(userStr);
-
-        // Show welcome message
-        document.getElementById(
-          'welcome-message'
-        ).textContent = `Welcome back, ${user.email}!`;
-
-        // Logout handler
-        document
-          .getElementById('logout-btn')
-          .addEventListener('click', async () => {
-            await supabase.auth.signOut();
-            localStorage.removeItem('user');
-            window.location.href = 'login.html';
-          });
+        // Redirect logged-in user straight to character page
+        window.location.href = 'character.html';
       }
     </script>
   </body>
