@@ -1,65 +1,55 @@
-<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="UTF-8" />
-    <title>Your Character - Dungeon Crawler</title>
-  </head>
-  <body>
-    <h1>Your Character</h1>
-    <div id="character-info">Loading your character...</div>
-    <button id="logout-btn">Logout</button>
+<!-- Keep your existing markup; here's the script block logic changes -->
+<script type="module">
+  import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+  const supabase = createClient(
+    'https://fqegrllwoskrfcnmzlod.supabase.co',
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
+  );
 
-    <script type="module">
-      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+  const userStr = localStorage.getItem('user');
+  if (!userStr) window.location.href = 'login.html';
+  const user = JSON.parse(userStr);
+  if (!user?.id) {
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  }
 
-      const supabase = createClient(
-        'https://fqegrllwoskrfcnmzlod.supabase.co',
-        'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
-      );
+  // role gate: DMs go to dashboard
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  if (profile?.role === 'dm') {
+    window.location.href = 'dm-dashboard.html';
+  }
 
-      const userStr = localStorage.getItem('user');
-      if (!userStr) {
-        window.location.href = 'index.html';
-      }
-      const user = JSON.parse(userStr);
+  async function loadCharacter() {
+    const { data: character, error } = await supabase
+      .from('characters')
+      .select('*')
+      .eq('user_id', user.id)
+      .single();
 
-      async function loadCharacter() {
-        const { data: character, error } = await supabase
-          .from('characters')
-          .select('*')
-          .eq('user_id', user.id)
-          .single();
+    if (error || !character) {
+      window.location.href = 'create-character.html';
+      return;
+    }
 
-        if (error) {
-          if (error.code === 'PGRST116') {
-            // No character found, redirect to creation
-            window.location.href = 'create-character.html';
-          } else {
-            document.getElementById('character-info').textContent =
-              'Error loading character: ' + error.message;
-          }
-          return;
-        }
+    document.getElementById('character-info').innerHTML = `
+      <h2>${character.name}</h2>
+      <p>Level: ${character.level}</p>
+      <p>HP: ${character.hp_current} / ${character.hp_max}</p>
+      <p>Armor: ${character.armor_hp} (${character.armor_state})</p>
+      <p>Stripping Stage: ${character.stripping_stage}</p>
+    `;
+  }
 
-        // Display character info
-        document.getElementById('character-info').innerHTML = `
-          <h2>${character.name}</h2>
-          <p>Level: ${character.level}</p>
-          <p>HP: ${character.hp_current} / ${character.hp_max}</p>
-          <p>Armor: ${character.armor_hp} (${character.armor_state})</p>
-          <p>Stripping Stage: ${character.stripping_stage}</p>
-        `;
-      }
+  loadCharacter();
 
-      loadCharacter();
-
-      document
-        .getElementById('logout-btn')
-        .addEventListener('click', async () => {
-          await supabase.auth.signOut();
-          localStorage.removeItem('user');
-          window.location.href = 'login.html';
-        });
-    </script>
-  </body>
-</html>
+  document.getElementById('logout-btn').addEventListener('click', async () => {
+    await supabase.auth.signOut();
+    localStorage.removeItem('user');
+    window.location.href = 'login.html';
+  });
+</script>

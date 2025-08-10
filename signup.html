@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <title>Sign Up - Dungeon Crawler</title>
+  </head>
+  <body>
+    <h1>Sign Up</h1>
+
+    <input type="email" id="email" placeholder="Email" />
+    <input type="password" id="password" placeholder="Password" />
+    <button id="signup-btn">Sign Up</button>
+
+    <script type="module">
+      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
+
+      const supabase = createClient(
+        'https://fqegrllwoskrfcnmzlod.supabase.co',
+        'YOUR_ANON_KEY'
+      );
+
+      document
+        .getElementById('signup-btn')
+        .addEventListener('click', async () => {
+          const email = document.getElementById('email').value;
+          const password = document.getElementById('password').value;
+
+          const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+
+          if (error) {
+            alert('Sign up error: ' + error.message);
+          } else {
+            localStorage.setItem('user', JSON.stringify(data.user));
+            window.location.href = 'character.html';
+          }
+        });
+    </script>
+  </body>
+</html>
