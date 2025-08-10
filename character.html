@@ -3,18 +3,128 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Character</title>
-    <link rel="stylesheet" href="styles.css" />
+    <title>Your Character</title>
+    <link rel="stylesheet" href="character.css" />
   </head>
   <body>
-    <h1>Your Character</h1>
+    <header>
+      <div>
+        <h1 id="charName">—</h1>
+        <div class="meta">
+          <span id="charRace" class="pill">—</span>
+          <span id="charClass" class="pill">—</span>
+          <span id="charLevel" class="pill">Lvl —</span>
+        </div>
+      </div>
+      <div class="kv">
+        <div class="muted">Owner</div>
+        <div id="ownerEmail">—</div>
+        <div class="muted">UUID</div>
+        <div id="ownerId" class="muted">—</div>
+      </div>
+    </header>
 
-    <div id="characterInfo">
-      <!-- Character info will be injected here by character.js -->
-    </div>
+    <nav class="tabs">
+      <div class="tab active" data-tab="overview">Overview</div>
+      <div class="tab" data-tab="inventory">Inventory</div>
+      <div class="tab" data-tab="achievements">Achievements</div>
+      <div class="tab" data-tab="viewership">Viewership</div>
+    </nav>
 
-    <button id="logoutBtn">Logout</button>
+    <div id="msg"></div>
 
+    <section class="page active" id="page-overview">
+      <div class="grid stats">
+        <div class="card">
+          <div class="label">HP</div>
+          <div class="big" id="hp">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Stress</div>
+          <div class="big" id="stress">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Hope</div>
+          <div class="big" id="hope">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Agility</div>
+          <div class="big" id="agility">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Strength</div>
+          <div class="big" id="strength">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Finesse</div>
+          <div class="big" id="finesse">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Instinct</div>
+          <div class="big" id="instinct">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Presence</div>
+          <div class="big" id="presence">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Knowledge</div>
+          <div class="big" id="knowledge">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Armor</div>
+          <div class="big" id="armor">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Evasion</div>
+          <div class="big" id="evasion">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Damage Thresholds</div>
+          <div>Minor: <span id="thMinor">—</span></div>
+          <div>Major: <span id="thMajor">—</span></div>
+          <div>Severe: <span id="thSevere">—</span></div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-top: 12px">
+        <div class="label">Notes</div>
+        <div id="notes" class="muted">—</div>
+      </div>
+    </section>
+
+    <section class="page" id="page-inventory">
+      <div class="list" id="inventoryList"></div>
+      <div class="muted" id="inventoryEmpty" style="display: none">
+        No items yet.
+      </div>
+    </section>
+
+    <section class="page" id="page-achievements">
+      <div class="list" id="achievementsList"></div>
+      <div class="muted" id="achievementsEmpty" style="display: none">
+        No achievements yet.
+      </div>
+    </section>
+
+    <section class="page" id="page-viewership">
+      <div class="grid stats">
+        <div class="card">
+          <div class="label">Followers</div>
+          <div class="big" id="followers">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Live Viewers</div>
+          <div class="big" id="liveViewers">—</div>
+        </div>
+        <div class="card">
+          <div class="label">Lifetime Views</div>
+          <div class="big" id="lifetimeViews">—</div>
+        </div>
+      </div>
+    </section>
+
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="character.js"></script>
   </body>
 </html>
