@@ -1,10 +1,10 @@
-// js/login.js
 import {
   supabase,
   saveUser,
   ensureProfile,
   getRole,
   routeByRole,
+  goto,
 } from './auth.js';
 
 const msgBox = document.getElementById('msg');
@@ -39,7 +39,7 @@ document.getElementById('signup-btn').addEventListener('click', async () => {
   const { data, error } = await supabase.auth.signUp({ email, password });
   if (error) return showMsg('Sign up error: ' + error.message);
 
-  await ensureProfile(data.user.id); // create as player by default
+  await ensureProfile(data.user.id);
   saveUser(data.user);
   const role = await getRole(data.user.id);
   routeByRole(role);

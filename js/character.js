@@ -1,8 +1,16 @@
-import { supabase, requireUser, getRole, logout } from './js/auth.js';
+import { supabase, getRole, logout, goto } from './auth.js';
 
-const user = requireUser();
+const userStr = localStorage.getItem('user');
+if (!userStr) goto('login.html');
+const user = JSON.parse(userStr);
+if (!user?.id) {
+  localStorage.removeItem('user');
+  goto('login.html');
+}
+
+// DM gate
 const role = await getRole(user.id);
-if (role === 'dm') window.location.href = 'dm-dashboard.html';
+if (role === 'dm') goto('dm-dashboard.html');
 
 async function loadCharacter() {
   const { data, error } = await supabase
@@ -10,10 +18,10 @@ async function loadCharacter() {
     .select('*')
     .eq('user_id', user.id)
     .single();
-  if (error || !data) return (window.location.href = 'create-character.html');
 
-  // render
-  charDiv.innerHTML = `
+  if (error || !data) return goto('create-character.html');
+
+  document.getElementById('character-info').innerHTML = `
     <h2>${data.name}</h2>
     <p>Level: ${data.level}</p>
     <p>HP: ${data.hp_current} / ${data.hp_max}</p>
@@ -21,7 +29,6 @@ async function loadCharacter() {
     <p>Stripping Stage: ${data.stripping_stage}</p>
   `;
 }
-const charDiv = document.getElementById('character-info');
 await loadCharacter();
 
 document.getElementById('logout-btn').addEventListener('click', logout);
