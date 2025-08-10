@@ -1,43 +1,41 @@
-<!-- Keep your existing markup; here's the script block logic changes -->
-<script type="module">
-  import { createClient } from 'https://esm.sh/@supabase/supabase-js';
-  const supabase = createClient(
-    'https://fqegrllwoskrfcnmzlod.supabase.co',
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE'
-  );
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Create Character</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <h1>Create Your Character</h1>
 
-  const userStr = localStorage.getItem('user');
-  if (!userStr) window.location.href = 'login.html';
-  const user = JSON.parse(userStr);
+    <div id="msg"></div>
 
-  // role gate: DMs don't create characters
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', user.id)
-    .single();
-  if (profile?.role === 'dm') {
-    window.location.href = 'dm-dashboard.html';
-  }
+    <form id="createCharacterForm">
+      <label for="name">Character Name:</label>
+      <input type="text" id="name" name="name" required />
 
-  document.getElementById('createBtn').addEventListener('click', async () => {
-    const name = document.getElementById('charName').value.trim();
-    if (!name) return alert('Please enter a character name.');
+      <label for="race">Race:</label>
+      <select id="race" name="race" required>
+        <option value="">-- Select Race --</option>
+        <option value="human">Human</option>
+        <option value="elf">Elf</option>
+        <option value="dwarf">Dwarf</option>
+        <option value="orc">Orc</option>
+      </select>
 
-    const { error } = await supabase.from('characters').insert([
-      {
-        user_id: user.id,
-        name,
-        level: 1,
-        hp_current: 100,
-        hp_max: 100,
-        armor_hp: 50,
-        armor_state: 'intact',
-        stripping_stage: 0,
-      },
-    ]);
+      <label for="class">Class:</label>
+      <select id="class" name="class" required>
+        <option value="">-- Select Class --</option>
+        <option value="warrior">Warrior</option>
+        <option value="mage">Mage</option>
+        <option value="rogue">Rogue</option>
+        <option value="cleric">Cleric</option>
+      </select>
 
-    if (error) alert('Error creating character: ' + error.message);
-    else window.location.href = 'character.html';
-  });
-</script>
+      <button type="submit">Create Character</button>
+    </form>
+
+    <script src="create-character.js"></script>
+  </body>
+</html>
