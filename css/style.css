@@ -1,0 +1,24 @@
+body {
+  font-family: sans-serif;
+  background-color: #0e0e0e;
+  color: #f2f2f2;
+  padding: 2rem;
+}
+
+.tinybars {
+  font-size: 12px;
+  line-height: 1.2;
+}
+.tinybars .label {
+  opacity: 0.7;
+  margin-right: 4px;
+}
+.slotCard {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0f1220;
+}
+.slotCard + .slotCard {
+  margin-top: 8px;
+}

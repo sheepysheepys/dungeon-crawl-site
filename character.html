@@ -4,127 +4,511 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Your Character</title>
-    <link rel="stylesheet" href="character.css" />
+    <link rel="stylesheet" href="/css/character.css" />
   </head>
+
   <body>
-    <header>
-      <div>
-        <h1 id="charName">—</h1>
-        <div class="meta">
-          <span id="charRace" class="pill">—</span>
-          <span id="charClass" class="pill">—</span>
-          <span id="charLevel" class="pill">Lvl —</span>
+    <div class="sheet">
+      <!-- HEADER -->
+      <header class="sheet-header sheet-header--inline">
+        <div class="brand">
+          <div class="brand-title">DUNGEON CRAWLER</div>
+          <div class="brand-sub">Character Sheet</div>
+        </div>
+
+        <div class="id-grid id-grid--with-level">
+          <label class="field">
+            <span class="field-label">Name</span>
+            <span id="charName" class="field-value">—</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Race</span>
+            <span id="charRace" class="field-value">—</span>
+          </label>
+          <label class="field">
+            <span class="field-label">Class</span>
+            <span id="charClass" class="field-value">—</span>
+          </label>
+
+          <div class="field level-field">
+            <span class="field-label">Level</span>
+            <div class="level-pill"><span id="charLevelNum">1</span></div>
+          </div>
+        </div>
+      </header>
+
+      <!-- ABILITY SCORES -->
+      <section class="box" id="statsCard">
+        <span class="label-corner">Abilities</span>
+        <div class="abilities">
+          <div class="ability" data-stat="agility">
+            <div class="abbr">Agility</div>
+            <div class="circle">
+              <div style="text-align: center">
+                <div class="score mono" id="stat-agility-total">—</div>
+              </div>
+            </div>
+            <div class="break mono" id="stat-agility-break">—</div>
+            <div class="tags">sprint • dodge • leap</div>
+          </div>
+
+          <div class="ability" data-stat="strength">
+            <div class="abbr">Strength</div>
+            <div class="circle">
+              <div style="text-align: center">
+                <div class="score mono" id="stat-strength-total">—</div>
+              </div>
+            </div>
+            <div class="break mono" id="stat-strength-break">—</div>
+            <div class="tags">lift • smash • grapple</div>
+          </div>
+
+          <div class="ability" data-stat="finesse">
+            <div class="abbr">Finesse</div>
+            <div class="circle">
+              <div style="text-align: center">
+                <div class="score mono" id="stat-finesse-total">—</div>
+              </div>
+            </div>
+            <div class="break mono" id="stat-finesse-break">—</div>
+            <div class="tags">control • hide • tinker</div>
+          </div>
+
+          <div class="ability" data-stat="instinct">
+            <div class="abbr">Instinct</div>
+            <div class="circle">
+              <div style="text-align: center">
+                <div class="score mono" id="stat-instinct-total">—</div>
+              </div>
+            </div>
+            <div class="break mono" id="stat-instinct-break">—</div>
+            <div class="tags">perceive • sense • navigate</div>
+          </div>
+
+          <div class="ability" data-stat="presence">
+            <div class="abbr">Presence</div>
+            <div class="circle">
+              <div style="text-align: center">
+                <div class="score mono" id="stat-presence-total">—</div>
+              </div>
+            </div>
+            <div class="break mono" id="stat-presence-break">—</div>
+            <div class="tags">charm • perform • deceive</div>
+          </div>
+
+          <div class="ability" data-stat="knowledge">
+            <div class="abbr">Knowledge</div>
+            <div class="circle">
+              <div style="text-align: center">
+                <div class="score mono" id="stat-knowledge-total">—</div>
+              </div>
+            </div>
+            <div class="break mono" id="stat-knowledge-break">—</div>
+            <div class="tags">recall • analyze • comprehend</div>
+          </div>
+        </div>
+      </section>
+
+      <div class="sheet-body">
+        <div id="msg" class="muted"></div>
+
+        <!-- ================== TOP GRID ================== -->
+        <!-- Row 1: HP (span 2) | Armor -->
+        <!-- Row 2: Evasion | Hope | Experience -->
+        <div class="top-grid">
+          <!-- HP -->
+          <section class="box" id="hpCard">
+            <span class="label-corner">Health</span>
+            <h3>HP</h3>
+            <div class="row">
+              <div class="big">
+                <span id="hpCurrent">—</span><span class="muted"> / </span
+                ><span id="hpTotal">—</span>
+              </div>
+              <div class="spacer"></div>
+              <button class="btn-good" id="btnHpPlus">+1</button>
+              <button class="btn-bad" id="btnHpMinus">-1</button>
+              <button class="btn-accent" id="btnDamageCalc">
+                Damage Calculator
+              </button>
+            </div>
+
+            <div class="hp-track"><div class="hp-bar" id="hpBar"></div></div>
+
+            <div class="grid thresholds">
+              <div>
+                <div class="muted">Minor</div>
+                <div class="mono" id="thMinor">—</div>
+              </div>
+              <div>
+                <div class="muted">Major</div>
+                <div class="mono" id="thMajor">—</div>
+              </div>
+              <div>
+                <div class="muted">Severe</div>
+                <div class="mono" id="thSevere">—</div>
+              </div>
+            </div>
+
+            <div class="row rest-row">
+              <button id="btnShortRest" class="btn">Short Rest</button>
+              <button id="btnLongRest" class="btn">Long Rest</button>
+            </div>
+          </section>
+
+          <!-- Armor (medium) -->
+          <section class="box medium" id="armorCard">
+            <span class="label-corner">Armor</span>
+            <h3>Active Armor</h3>
+            <div class="row armor-inline">
+              <div>
+                Clothing Level: <span id="exoOn" class="mono chip">0</span>
+                <span class="muted">/ 5</span>
+              </div>
+              <div class="spacer"></div>
+              <div>
+                Pieces Stripped:
+                <span id="strippedPieces" class="mono chip">0</span>
+              </div>
+            </div>
+            <div class="armor-track">
+              <div class="tick"></div>
+              <div class="tick"></div>
+              <div class="tick"></div>
+              <div class="tick"></div>
+              <div class="tick"></div>
+            </div>
+          </section>
+
+          <!-- Evasion (compact) -->
+          <section class="box compact" id="evasionCard">
+            <span class="label-corner">Evasion</span>
+            <div class="meter"><div class="big mono" id="evasion">—</div></div>
+          </section>
+
+          <!-- Hope (compact) -->
+          <section class="box compact" id="hopeCard">
+            <span class="label-corner">Hope</span>
+            <div class="row">
+              <div class="big" id="hopeDots" aria-live="polite">—</div>
+              <div class="spacer"></div>
+              <button id="btnHopePlus" class="btn-good">+</button>
+              <button id="btnHopeMinus" class="btn-bad">−</button>
+            </div>
+            <div class="muted">Max 5.</div>
+          </section>
+
+          <!-- Experience (now in the grid, 2nd row 3rd col) -->
+          <section class="box" id="experienceCard">
+            <span class="label-corner">Experience</span>
+            <h3>Experience</h3>
+            <div class="xp-list" id="xpList">
+              <div class="xp-row">
+                <span class="xp-name">Royal Mage</span>
+                <span class="xp-bonus">+2</span>
+                <span class="xp-notch" aria-hidden="true"></span>
+              </div>
+              <div class="xp-row">
+                <span class="xp-name">Not On My Watch</span>
+                <span class="xp-bonus">+1</span>
+                <span class="xp-notch" aria-hidden="true"></span>
+              </div>
+              <div class="xp-row xp-empty">
+                <span></span><span></span><span class="xp-notch"></span>
+              </div>
+              <div class="xp-row xp-empty">
+                <span></span><span></span><span class="xp-notch"></span>
+              </div>
+            </div>
+          </section>
+        </div>
+        <!-- =============== /TOP GRID ================== -->
+
+        <!-- Now the rest of the sheet content -->
+        <section class="box" id="weaponsCard">
+          <span class="label-corner">Weapons</span>
+          <h3>Active Weapons</h3>
+          <div id="activeWeapons" class="list"></div>
+          <div id="weaponsEmpty" class="muted">No active weapons.</div>
+        </section>
+
+        <section class="box" id="achievementsCard">
+          <span class="label-corner">Achievements</span>
+          <h3>Achievements & Loot Boxes</h3>
+          <div id="achievementsList" class="list"></div>
+          <div id="achievementsEmpty" class="muted">No achievements yet.</div>
+        </section>
+
+        <!-- TABS -->
+        <nav class="tabs">
+          <div class="tab active" data-tab="abilities">Abilities</div>
+          <div class="tab" data-tab="equipment">Equipment</div>
+          <div class="tab" data-tab="inventory">Inventory</div>
+          <div class="tab" data-tab="notes">Notes</div>
+          <div class="tab" data-tab="viewership">Viewership</div>
+        </nav>
+
+        <section class="page active" id="page-abilities">
+          <div class="list" id="abilitiesList"></div>
+          <div class="muted" id="abilitiesEmpty">No abilities yet.</div>
+        </section>
+
+        <section class="page" id="page-equipment">
+          <div class="grid equip-grid">
+            <!-- Left: Silhouette + totals -->
+            <section class="box" id="equipmentArmorSilhouette">
+              <span class="label-corner">Armor</span>
+              <h3>Armor Overview</h3>
+
+              <div class="silhouette-wrap">
+                <!-- Simple, responsive inline SVG -->
+                <svg
+                  class="silhouette"
+                  viewBox="0 0 120 220"
+                  role="img"
+                  aria-label="Armor silhouette"
+                >
+                  <!-- Underlay (exo baseline hint) -->
+                  <g class="base">
+                    <circle cx="60" cy="22" r="14" />
+                    <rect x="38" y="40" width="44" height="46" rx="8" />
+                    <rect x="48" y="86" width="24" height="40" rx="6" />
+                    <rect x="48" y="128" width="24" height="52" rx="6" />
+                  </g>
+
+                  <!-- Overlays (toggle .active via JS) -->
+                  <g class="overlay">
+                    <circle
+                      class="slot-region"
+                      data-slot="head"
+                      cx="60"
+                      cy="22"
+                      r="14"
+                    />
+                    <rect
+                      class="slot-region"
+                      data-slot="chest"
+                      x="38"
+                      y="40"
+                      width="44"
+                      height="46"
+                      rx="8"
+                    />
+                    <rect
+                      class="slot-region"
+                      data-slot="arms"
+                      x="24"
+                      y="44"
+                      width="72"
+                      height="14"
+                      rx="6"
+                    />
+                    <rect
+                      class="slot-region"
+                      data-slot="legs"
+                      x="48"
+                      y="128"
+                      width="24"
+                      height="52"
+                      rx="6"
+                    />
+                    <!-- Accessory marker near waist -->
+                    <circle
+                      class="slot-region"
+                      data-slot="accessory"
+                      cx="86"
+                      cy="112"
+                      r="6"
+                    />
+                  </g>
+                </svg>
+              </div>
+
+              <!-- Totals strip -->
+              <div class="totals">
+                <div class="total-row">
+                  <div class="label">Exo left</div>
+                  <div class="value mono" id="silExoLeft">—</div>
+                  <div class="pips" aria-label="Exo pieces remaining">
+                    <span class="pip"></span><span class="pip"></span
+                    ><span class="pip"></span><span class="pip"></span
+                    ><span class="pip"></span>
+                  </div>
+                </div>
+
+                <div class="total-row">
+                  <div class="label">Armor pieces</div>
+                  <div class="value mono" id="silArmorCount">0</div>
+                </div>
+
+                <div class="total-row protection">
+                  <div class="label">Protection</div>
+                  <div class="value mono" id="silProtectionTotal">0</div>
+                  <div class="hint muted">= Exo + Armor</div>
+                </div>
+              </div>
+            </section>
+
+            <!-- Right: Other gear (keeps your existing IDs) -->
+            <section class="box" id="equipmentOther">
+              <span class="label-corner">Gear</span>
+              <h3>Other Gear</h3>
+              <div class="list" id="equipmentList"></div>
+              <div class="muted" id="equipmentEmpty"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="page" id="page-inventory">
+          <div id="inventoryAllList" class="list"></div>
+          <div class="muted" id="inventoryEmpty">Inventory is empty.</div>
+          <div class="row" style="margin-top: 10px">
+            <input id="addItemName" type="text" placeholder="Add item name…" />
+            <input
+              id="addItemQty"
+              type="number"
+              value="1"
+              min="1"
+              style="width: 90px"
+            />
+            <button id="btnAddItem" class="btn-accent">Add</button>
+          </div>
+        </section>
+
+        <section class="page" id="page-notes">
+          <div class="box">
+            <span class="label-corner">Notes</span>
+            <h3>Character Notes</h3>
+            <textarea id="notes" rows="6" style="width: 100%"></textarea>
+            <div class="row" style="margin-top: 8px; justify-content: flex-end">
+              <button id="btnSaveNotes" class="btn-accent">Save Notes</button>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-viewership">
+          <div class="grid stats3">
+            <div class="box">
+              <span class="label-corner">Fans</span>
+              <h3>Followers</h3>
+              <div class="big" id="followers">—</div>
+            </div>
+            <div class="box">
+              <span class="label-corner">Live</span>
+              <h3>Live Viewers</h3>
+              <div class="big" id="liveViewers">—</div>
+            </div>
+            <div class="box">
+              <span class="label-corner">All-Time</span>
+              <h3>Lifetime Views</h3>
+              <div class="big" id="lifetimeViews">—</div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
+
+    <!-- Modals -->
+    <div class="modal-backdrop" id="restModalBack">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="restModalTitle"
+      >
+        <h3 id="restModalTitle">Rest</h3>
+        <div id="restOptions" class="list" style="margin: 8px 0 12px"></div>
+        <div class="row" style="justify-content: flex-end">
+          <button id="btnConfirmRest" class="btn-accent">Confirm</button>
+          <button id="btnCloseRestModal">Close</button>
         </div>
       </div>
-      <div class="kv">
-        <div class="muted">Owner</div>
-        <div id="ownerEmail">—</div>
-        <div class="muted">UUID</div>
-        <div id="ownerId" class="muted">—</div>
-      </div>
-    </header>
+    </div>
 
-    <nav class="tabs">
-      <div class="tab active" data-tab="overview">Overview</div>
-      <div class="tab" data-tab="inventory">Inventory</div>
-      <div class="tab" data-tab="achievements">Achievements</div>
-      <div class="tab" data-tab="viewership">Viewership</div>
-    </nav>
-
-    <div id="msg"></div>
-
-    <section class="page active" id="page-overview">
-      <div class="grid stats">
-        <div class="card">
-          <div class="label">HP</div>
-          <div class="big" id="hp">—</div>
+    <div class="modal-backdrop" id="modalBack">
+      <div class="modal">
+        <h3>Damage Calculator</h3>
+        <div class="row" style="justify-content: flex-start">
+          <label
+            >Damage:&nbsp;<input
+              id="calcDamage"
+              type="number"
+              min="0"
+              value="0"
+          /></label>
         </div>
-        <div class="card">
-          <div class="label">Stress</div>
-          <div class="big" id="stress">—</div>
+        <div id="calcResult" style="margin: 10px 0" class="mono muted">
+          Enter a number and press Calculate.
         </div>
-        <div class="card">
-          <div class="label">Hope</div>
-          <div class="big" id="hope">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Agility</div>
-          <div class="big" id="agility">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Strength</div>
-          <div class="big" id="strength">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Finesse</div>
-          <div class="big" id="finesse">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Instinct</div>
-          <div class="big" id="instinct">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Presence</div>
-          <div class="big" id="presence">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Knowledge</div>
-          <div class="big" id="knowledge">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Armor</div>
-          <div class="big" id="armor">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Evasion</div>
-          <div class="big" id="evasion">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Damage Thresholds</div>
-          <div>Minor: <span id="thMinor">—</span></div>
-          <div>Major: <span id="thMajor">—</span></div>
-          <div>Severe: <span id="thSevere">—</span></div>
+        <div class="row">
+          <div class="spacer"></div>
+          <button id="btnCalc" class="btn-accent">Calculate</button>
+          <button id="btnApplyDamage" class="btn-bad">Apply</button>
+          <button id="btnCloseModal">Close</button>
         </div>
       </div>
+    </div>
 
-      <div class="card" style="margin-top: 12px">
-        <div class="label">Notes</div>
-        <div id="notes" class="muted">—</div>
-      </div>
-    </section>
-
-    <section class="page" id="page-inventory">
-      <div class="list" id="inventoryList"></div>
-      <div class="muted" id="inventoryEmpty" style="display: none">
-        No items yet.
-      </div>
-    </section>
-
-    <section class="page" id="page-achievements">
-      <div class="list" id="achievementsList"></div>
-      <div class="muted" id="achievementsEmpty" style="display: none">
-        No achievements yet.
-      </div>
-    </section>
-
-    <section class="page" id="page-viewership">
-      <div class="grid stats">
-        <div class="card">
-          <div class="label">Followers</div>
-          <div class="big" id="followers">—</div>
+    <div class="modal-backdrop" id="levelModalBack">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="levelModalTitle"
+      >
+        <h3 id="levelModalTitle">Level Up</h3>
+        <div class="row" style="justify-content: flex-start">
+          <div class="muted">
+            Choose HP increase, abilities, feats (coming soon).
+          </div>
         </div>
-        <div class="card">
-          <div class="label">Live Viewers</div>
-          <div class="big" id="liveViewers">—</div>
-        </div>
-        <div class="card">
-          <div class="label">Lifetime Views</div>
-          <div class="big" id="lifetimeViews">—</div>
+        <div class="row">
+          <div class="spacer"></div>
+          <button id="btnConfirmLevelUp" class="btn-accent">Confirm</button>
+          <button id="btnCloseLevelModal">Close</button>
         </div>
       </div>
-    </section>
+    </div>
 
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-    <script src="js/character.js" defer></script>
+    <!-- scripts -->
+    <script>
+      window.App = window.App || { Features: {}, Logic: {} };
+      window.AppState = window.AppState || { user: null, character: null };
+      console.log('[boot] namespaces ready', {
+        hasApp: !!window.App,
+        hasFeatures: !!(window.App && window.App.Features),
+        hasLogic: !!(window.App && window.App.Logic),
+      });
+    </script>
+
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    ></script>
+    <script defer src="/js/supabase-client.js"></script>
+
+    <!-- helpers -->
+    <script defer src="/js/ui-helpers.js"></script>
+    <script defer src="/js/modal-helpers.js"></script>
+    <script defer src="/js/traits-helpers.js"></script>
+
+    <!-- logic first -->
+    <script defer src="/js/logic/armor.js"></script>
+    <script defer src="/js/logic/strip.js"></script>
+    <script defer src="/js/logic/inventory.js"></script>
+    <script defer src="/js/logic/rests.js"></script>
+
+    <!-- then features -->
+    <script defer src="/js/features/inventory.js"></script>
+    <script defer src="/js/features/equipment.js"></script>
+    <script defer src="/js/features/abilities.js"></script>
+    <script defer src="/js/features/bars.js"></script>
+    <script defer src="/js/logic/loot.js"></script>
+    <script defer src="/js/features/achievements.js"></script>
+    <script defer src="/js/features/equipment-ui.js"></script>
+    <script defer src="/js/features/equipment-silhouette.js"></script>
+
+    <!-- orchestrator last -->
+    <script defer src="/js/character.js"></script>
   </body>
 </html>
