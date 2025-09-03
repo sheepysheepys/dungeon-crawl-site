@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>DM Tools</title>
+    <link rel="stylesheet" href="/css/character.css" />
+  </head>
+  <body style="max-width: 860px; margin: 24px auto; padding: 16px">
+    <h2>DM: Grant Achievement / Loot Box</h2>
+    <div id="dmApp" class="box">
+      <div class="row">
+        <label
+          >Character:
+          <select id="dmChar"></select>
+        </label>
+        <label
+          >Rarity:
+          <select id="dmRarity">
+            <option>common</option>
+            <option>uncommon</option>
+            <option>rare</option>
+            <option>epic</option>
+            <option>legendary</option>
+          </select>
+        </label>
+      </div>
+      <div class="row" style="margin-top: 8px">
+        <input
+          id="dmDesc"
+          type="text"
+          placeholder="Achievement description…"
+          style="flex: 1"
+        />
+      </div>
+      <div class="row" style="justify-content: flex-end; margin-top: 10px">
+        <button id="btnGrantAch" class="btn-accent">Grant Achievement</button>
+        <button id="btnGrantBox" class="btn-good">Grant Loot Box</button>
+      </div>
+      <div id="dmMsg" class="muted" style="margin-top: 8px"></div>
+    </div>
+
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    ></script>
+    <script defer src="/js/supabase-client.js"></script>
+    <script defer src="/js/dm.js"></script>
+  </body>
+</html>
