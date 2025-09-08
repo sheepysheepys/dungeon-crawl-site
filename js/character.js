@@ -8,35 +8,84 @@ console.log('[character] start', {
 });
 
 // ================= HP / HOPE =================
+// ================= HP / HOPE =================
+
+// -- RENDERERS --
+function renderHP(ch) {
+  const elCur = document.getElementById('hpCurrent');
+  const elTot = document.getElementById('hpTotal');
+  const elBar = document.getElementById('hpBar');
+  if (!elCur || !elTot || !elBar) {
+    console.warn('[HP] missing DOM');
+    return;
+  }
+
+  const total = Number(ch?.hp_total ?? 0);
+  const current = Math.max(0, Math.min(total, Number(ch?.hp_current ?? 0)));
+
+  elCur.textContent = String(current);
+  elTot.textContent = String(total);
+
+  const pct = total > 0 ? (current / total) * 100 : 0;
+  elBar.style.width = pct.toFixed(2) + '%';
+
+  // thresholds: prefer DB fields, else derive (25/50/75)
+  const tMinor = Number(ch?.th_minor ?? Math.round(total * 0.25));
+  const tMajor = Number(ch?.th_major ?? Math.round(total * 0.5));
+  const tSevere = Number(ch?.th_severe ?? Math.round(total * 0.75));
+  setText?.('thMinor', tMinor);
+  setText?.('thMajor', tMajor);
+  setText?.('thSevere', tSevere);
+}
+
+function renderHope(ch) {
+  const dotsEl = document.getElementById('hopeDots');
+  if (!dotsEl) {
+    console.warn('[Hope] missing DOM');
+    return;
+  }
+  const val = Math.max(0, Math.min(5, Number(ch?.hope_points ?? 0)));
+  dotsEl.textContent =
+    typeof fmtDots === 'function'
+      ? fmtDots(val)
+      : '●'.repeat(val) + '○'.repeat(5 - val);
+}
+
+// -- MUTATIONS --
 async function adjustHP(delta) {
   const client = window.sb;
-  const ch = window.AppState.character;
-  if (!client || !ch) return;
+  const ch = window.AppState?.character;
+  if (!client || !ch?.id) return;
 
-  const total = ch.hp_total ?? 0;
-  const next = Math.max(0, Math.min(total, (ch.hp_current ?? 0) + delta));
+  const total = Number(ch.hp_total ?? 0);
+  const next = Math.max(0, Math.min(total, Number(ch.hp_current ?? 0) + delta));
+
   const { data, error } = await client
     .from('characters')
     .update({ hp_current: next })
     .eq('id', ch.id)
-    .select('hp_current')
+    .select('hp_current, hp_total, th_minor, th_major, th_severe')
     .single();
 
   if (error) {
-    setText?.('msg', 'HP update blocked (RLS?).');
+    console.error('[HP] update failed', error);
+    setText?.('msg', 'HP update blocked (auth/RLS?).');
     return;
   }
-  ch.hp_current = data.hp_current;
-  setText?.('hpCurrent', data.hp_current);
+
+  // sync local + repaint
+  Object.assign(ch, data);
+  renderHP(ch);
   setText?.('msg', '');
 }
 
 async function adjustHope(delta) {
   const client = window.sb;
-  const ch = window.AppState.character;
-  if (!client || !ch) return;
+  const ch = window.AppState?.character;
+  if (!client || !ch?.id) return;
 
-  const next = Math.max(0, Math.min(5, (ch.hope_points ?? 0) + delta));
+  const next = Math.max(0, Math.min(5, Number(ch.hope_points ?? 0) + delta));
+
   const { data, error } = await client
     .from('characters')
     .update({ hope_points: next })
@@ -45,18 +94,21 @@ async function adjustHope(delta) {
     .single();
 
   if (error) {
-    setText?.('msg', 'Hope update blocked (RLS?).');
+    console.error('[Hope] update failed', error);
+    setText?.('msg', 'Hope update blocked (auth/RLS?).');
     return;
   }
+
   ch.hope_points = data.hope_points;
-  setText?.('hopeDots', fmtDots?.(data.hope_points) ?? '');
+  renderHope(ch);
   setText?.('msg', '');
 }
 
+// expose if other modules call these
 window.adjustHP = adjustHP;
 window.adjustHope = adjustHope;
 
-// Global +/- buttons
+// Wire +/- buttons (event delegation is fine)
 document.addEventListener('click', (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
@@ -77,6 +129,16 @@ document.addEventListener('click', (e) => {
     adjustHope(-1);
   }
 });
+
+// Call once after you load the character
+function paintHPAndHopeIfReady() {
+  const ch = window.AppState?.character;
+  if (!ch) return;
+  renderHP(ch);
+  renderHope(ch);
+}
+document.addEventListener('DOMContentLoaded', paintHPAndHopeIfReady);
+// …and also call paintHPAndHopeIfReady() right after you set AppState.character on load.
 
 // ================= INIT =================
 async function init() {
