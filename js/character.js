@@ -8,7 +8,13 @@ console.log('[character] start', {
 });
 
 // ================= HP / HOPE =================
-// ================= HP / HOPE =================
+
+// Central way to set the character and notify UI
+function setCharacter(ch) {
+  window.AppState = window.AppState || {};
+  window.AppState.character = ch;
+  window.dispatchEvent(new CustomEvent('character:ready', { detail: ch }));
+}
 
 // -- RENDERERS --
 function renderHP(ch) {
@@ -171,7 +177,7 @@ async function init() {
   }
 
   window.AppState.user = user;
-  window.AppState.character = c;
+  setCharacter(c);
 
   // stats (traits)
   try {
