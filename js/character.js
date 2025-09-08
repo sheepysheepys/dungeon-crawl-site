@@ -70,7 +70,7 @@ async function adjustHP(delta) {
     .from('characters')
     .update({ hp_current: next })
     .eq('id', ch.id)
-    .select('hp_current, hp_total, dmg_minor, dmg_major, dmg_severe')
+    .select('id,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe') // ✅ uses dmg_*
     .single();
 
   if (error) {
@@ -79,7 +79,6 @@ async function adjustHP(delta) {
     return;
   }
 
-  // sync local + repaint
   Object.assign(ch, data);
   renderHP(ch);
   setText?.('msg', '');
@@ -110,33 +109,19 @@ async function adjustHope(delta) {
   setText?.('msg', '');
 }
 
-// expose if other modules call these
 window.adjustHP = adjustHP;
 window.adjustHope = adjustHope;
 
-// Wire +/- buttons (event delegation is fine)
-document.addEventListener('click', (e) => {
-  const t = e.target;
-  if (!(t instanceof HTMLElement)) return;
-  if (t.id === 'btnHpPlus') {
-    e.preventDefault();
-    adjustHP(+1);
-  }
-  if (t.id === 'btnHpMinus') {
-    e.preventDefault();
-    adjustHP(-1);
-  }
-  if (t.id === 'btnHopePlus') {
-    e.preventDefault();
-    adjustHope(+1);
-  }
-  if (t.id === 'btnHopeMinus') {
-    e.preventDefault();
-    adjustHope(-1);
-  }
+// Paint when the character becomes available
+window.addEventListener('character:ready', (e) => {
+  const ch = e.detail;
+  console.log('[character:ready]', { id: ch?.id });
+  renderHP(ch);
+  renderHope(ch);
+  App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
 });
 
-// Call once after you load the character
+// Also try on DOM ready (in case state is already set)
 function paintHPAndHopeIfReady() {
   const ch = window.AppState?.character;
   if (!ch) return;
@@ -144,7 +129,6 @@ function paintHPAndHopeIfReady() {
   renderHope(ch);
 }
 document.addEventListener('DOMContentLoaded', paintHPAndHopeIfReady);
-// …and also call paintHPAndHopeIfReady() right after you set AppState.character on load.
 
 // ================= INIT =================
 async function init() {
@@ -168,6 +152,7 @@ async function init() {
       'id,user_id,name,race,class,level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes'
     )
     .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
@@ -177,7 +162,7 @@ async function init() {
   }
 
   window.AppState.user = user;
-  setCharacter(c);
+  setCharacter(c); // ✅ fires character:ready for paints
 
   // stats (traits)
   try {
@@ -196,7 +181,7 @@ async function init() {
   setText?.('charName', c.name ?? '—');
   setText?.('charRace', c.race ?? '—');
   setText?.('charClass', c['class'] ?? '—');
-  setText?.('charLevel', c.level != null ? `Lvl ${c.level}` : 'Lvl —');
+  setText?.('charLevelNum', c.level ?? '—'); // ✅ matches HTML id
   setText?.('evasion', c.evasion ?? '—');
   setText?.('ownerEmail', user.email || '—');
   setText?.('ownerId', c.user_id || '—');
@@ -319,7 +304,6 @@ async function equipFromInventory(lineId) {
 window.equipFromInventory = equipFromInventory; // used by features
 
 // ================= NON-EQUIPPABLE QUICK ADD =================
-// Thin wrapper → logic module (keeps old call sites stable)
 async function addInventoryItemById(itemId, delta) {
   const sb = window.sb;
   const chId = AppState.character.id;
@@ -512,7 +496,6 @@ function setupChooseLimit(container, max, confirmBtn) {
   function update() {
     const chosen = checks.filter((c) => c.checked).length;
     if (chosen > max) {
-      // uncheck the last one the user clicked
       const last = checks.find((c) => c._justClicked);
       if (last) last.checked = false;
     }
@@ -586,8 +569,8 @@ async function renderRestOptions(mode) {
   const ch = AppState.character;
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
-  // We still fetch equipment so we can show slot states later if needed
-  const { data: rows } = await client
+  // (We still fetch equipment; could be used in UI)
+  await client
     .from('character_equipment')
     .select(
       'id, slot, item_id, slots_remaining, exo_left, item:items(name, armor_value)'
@@ -596,7 +579,6 @@ async function renderRestOptions(mode) {
     .in('slot', ARMOR_SLOTS);
 
   if (mode === 'short') {
-    // Short Rest: choose 2 out of 4
     root.innerHTML = `
       <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
       <label class="row">
@@ -617,36 +599,33 @@ async function renderRestOptions(mode) {
       </label>
     `;
   } else {
-    // Long Rest: choose 2 out of 4 (exo will ALWAYS be reset on all 5 slots)
-    // inside renderRestOptions(mode) when mode === 'long':
     root.innerHTML = `
-  <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
-  <label class="row">
-    <input id="lrFullHeal" type="checkbox" />
-    <span><strong>Tend to all wounds</strong> (HP → max)</span>
-  </label>
-  <label class="row">
-    <input id="lrRepairAll" type="checkbox" />
-    <span><strong>Repair all equipped armor</strong> (does not recreate destroyed armor)</span>
-  </label>
-  <label class="row">
-    <input id="lrHope2" type="checkbox" />
-    <span><strong>Gain +2 Hope</strong> (to max 5)</span>
-  </label>
-  <label class="row" style="align-items:flex-start">
-    <input id="lrProject" type="checkbox" />
-    <span style="display:inline-block">
-      <strong>Work on a project</strong> (+1 tick)<br/>
-      <input id="lrProjectName" type="text" placeholder="Project name…" style="margin-top:6px; width:260px"/>
-    </span>
-  </label>
-  <div class="mono muted" style="margin-top:8px">
-    Exoskin will be restored on <strong>all 5 armor slots</strong> automatically.
-  </div>
-`;
+      <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
+      <label class="row">
+        <input id="lrFullHeal" type="checkbox" />
+        <span><strong>Tend to all wounds</strong> (HP → max)</span>
+      </label>
+      <label class="row">
+        <input id="lrRepairAll" type="checkbox" />
+        <span><strong>Repair all equipped armor</strong> (does not recreate destroyed armor)</span>
+      </label>
+      <label class="row">
+        <input id="lrHope2" type="checkbox" />
+        <span><strong>Gain +2 Hope</strong> (to max 5)</span>
+      </label>
+      <label class="row" style="align-items:flex-start">
+        <input id="lrProject" type="checkbox" />
+        <span style="display:inline-block">
+          <strong>Work on a project</strong> (+1 tick)<br/>
+          <input id="lrProjectName" type="text" placeholder="Project name…" style="margin-top:6px; width:260px"/>
+        </span>
+      </label>
+      <div class="mono muted" style="margin-top:8px">
+        Exoskin will be restored on <strong>all 5 armor slots</strong> automatically.
+      </div>
+    `;
   }
 
-  // Enforce choose up to 2
   setupChooseLimit(root, 2, confirmBtn);
 }
 
@@ -696,40 +675,7 @@ async function applyLongRestOptions() {
   setText?.('msg', `Long rest: ${results.join(' · ')}`);
 }
 
-async function applyLongRestOptions() {
-  const sb = window.sb;
-  const ch = AppState.character;
-
-  const results = await App.Logic.rests.applyLongRest(sb, ch, {
-    fullHeal: document.getElementById('lrFullHeal')?.checked,
-    repairAll: document.getElementById('lrRepairAll')?.checked,
-    hopePlus2: document.getElementById('lrHope2')?.checked,
-    projectName: document.getElementById('lrProject')?.checked
-      ? document.getElementById('lrProjectName')?.value || ''
-      : '',
-  });
-
-  // ✅ Repaint HP/Hope from updated AppState.character
-  setText?.('hpCurrent', AppState.character.hp_current);
-  setText?.('hopeDots', fmtDots?.(AppState.character.hope_points) ?? '');
-
-  // Armor/exo UI
-  await App.Features.equipment.computeAndRenderArmor(ch.id);
-  await App.Features.equipment.load(ch.id);
-
-  setText?.('msg', `Long rest: ${results.join(' · ')}`);
-}
-
-async function confirmRestModal() {
-  if (_restMode === 'short') {
-    await applyShortRestOptions();
-  } else {
-    await applyLongRestOptions();
-  }
-  closeRestModal();
-}
-
-// Ensure each armor slot has a row (exo-only if needed) so exo can be reset.
+// Ensure each armor slot has a row (exo-only if needed)
 async function ensureExoRowsForAllSlots() {
   const sb = window.sb;
   const ch = AppState.character;
@@ -761,13 +707,12 @@ async function ensureExoRowsForAllSlots() {
       character_id: ch.id,
       slot,
       item_id: null, // exo-only row
-      slots_remaining: 0, // no armor
-      exo_left: 1, // exo on after long rest
+      slots_remaining: 0,
+      exo_left: 1,
     }));
     const { data: ins, error: insErr } = await sb
       .from('character_equipment')
       .insert(inserts);
-
     if (insErr) {
       console.warn('[rest] exo rows insert error', insErr, { inserts });
       return {
@@ -838,7 +783,7 @@ function wireLevelUp() {
       setText?.('msg', 'Level up failed.');
     } else {
       ch.level = data.level;
-      setText?.('charLevelNum', String(data.level)); // <-- matches your HTML
+      setText?.('charLevelNum', String(data.level)); // ✅ matches HTML
       setText?.('msg', 'Leveled up! (Allocate gains coming soon)');
     }
 
