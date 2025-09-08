@@ -210,7 +210,6 @@ async function init() {
   const notesEl = document.getElementById('notes');
   if (notesEl) notesEl.value = c.notes ?? '';
 
-  // first renders
   await App.Features.inventory.load(c.id, {
     onEquip: equipFromInventory,
     onAdjustQty: adjustNonEquipQty,
