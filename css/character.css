@@ -119,9 +119,19 @@ body {
   height: var(--header-cell-h);
   display: flex;
   align-items: center;
-  justify-content: flex-start; /* room for button */
-  gap: 10px;
+  gap: 8px;
 }
+
+.level-field .field-label {
+  margin-right: 6px;
+}
+
+#btnLevelUp {
+  font-size: 13px;
+  padding: 4px 10px;
+  line-height: 1.2;
+}
+
 .level-pill {
   height: calc(var(--header-cell-h) - 12px);
   min-width: 96px;
