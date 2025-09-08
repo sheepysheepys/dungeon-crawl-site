@@ -35,10 +35,10 @@ function renderHP(ch) {
   const pct = total > 0 ? (current / total) * 100 : 0;
   elBar.style.width = pct.toFixed(2) + '%';
 
-  // thresholds: prefer DB fields, else derive (25/50/75)
-  const tMinor = Number(ch?.th_minor ?? Math.round(total * 0.25));
-  const tMajor = Number(ch?.th_major ?? Math.round(total * 0.5));
-  const tSevere = Number(ch?.th_severe ?? Math.round(total * 0.75));
+  // Use your existing columns:
+  const tMinor = Number(ch?.dmg_minor ?? Math.round(total * 0.25));
+  const tMajor = Number(ch?.dmg_major ?? Math.round(total * 0.5));
+  const tSevere = Number(ch?.dmg_severe ?? Math.round(total * 0.75));
   setText?.('thMinor', tMinor);
   setText?.('thMajor', tMajor);
   setText?.('thSevere', tSevere);
@@ -70,7 +70,7 @@ async function adjustHP(delta) {
     .from('characters')
     .update({ hp_current: next })
     .eq('id', ch.id)
-    .select('hp_current, hp_total, th_minor, th_major, th_severe')
+    .select('hp_current, hp_total, dmg_minor, dmg_major, dmg_severe')
     .single();
 
   if (error) {
