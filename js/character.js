@@ -736,35 +736,47 @@ function wireNotesSave() {
 
 // ================= LEVEL UP (stub) =================
 function wireLevelUp() {
-  document.getElementById('btnLevelUp')?.addEventListener('click', () => {
-    document.getElementById('levelModalBack')?.classList.add('show');
+  const openBtn = document.getElementById('btnLevelUp');
+  const back = document.getElementById('levelModalBack');
+  const closeBtn = document.getElementById('btnCloseLevelModal');
+  const confirmBtn = document.getElementById('btnConfirmLevelUp');
+
+  openBtn?.addEventListener('click', () => back?.classList.add('show'));
+  closeBtn?.addEventListener('click', () => back?.classList.remove('show'));
+
+  confirmBtn?.addEventListener('click', async () => {
+    const client = window.sb;
+    const ch = window.AppState?.character;
+
+    if (!client) {
+      console.error('[levelup] no supabase client');
+      return;
+    }
+    if (!ch?.id) {
+      console.error('[levelup] no character loaded');
+      return;
+    }
+
+    const next = Number(ch.level ?? 0) + 1;
+
+    const { data, error } = await client
+      .from('characters')
+      .update({ level: next })
+      .eq('id', ch.id)
+      .select('level')
+      .single();
+
+    if (error) {
+      console.error('[levelup] update failed', error);
+      setText?.('msg', 'Level up failed.');
+    } else {
+      ch.level = data.level;
+      setText?.('charLevelNum', String(data.level)); // <-- matches your HTML
+      setText?.('msg', 'Leveled up! (Allocate gains coming soon)');
+    }
+
+    back?.classList.remove('show');
   });
-  document
-    .getElementById('btnCloseLevelModal')
-    ?.addEventListener('click', () => {
-      document.getElementById('levelModalBack')?.classList.remove('show');
-    });
-  document
-    .getElementById('btnConfirmLevelUp')
-    ?.addEventListener('click', async () => {
-      const client = window.sb;
-      const ch = AppState.character;
-      const next = Number(ch.level ?? 0) + 1;
-      const { data, error } = await client
-        .from('characters')
-        .update({ level: next })
-        .eq('id', ch.id)
-        .select('level')
-        .single();
-      if (!error) {
-        ch.level = data.level;
-        setText?.('charLevel', `Lvl ${data.level}`);
-        setText?.('msg', 'Leveled up! (Allocate gains coming soon)');
-      } else {
-        setText?.('msg', 'Level up failed.');
-      }
-      document.getElementById('levelModalBack')?.classList.remove('show');
-    });
 }
 
 // ================= ACTIVE WEAPONS CARD =================
