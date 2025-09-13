@@ -364,8 +364,8 @@ async function init() {
   // wire ancillary
   wireNotesSave();
   wireLevelUp();
-  wireRests();
-  wireDamageCalc();
+  // wireRests();
+  // wireDamageCalc();
   wireHpAndHope();
 
   setText?.('msg', '');
