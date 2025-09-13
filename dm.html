@@ -3,18 +3,30 @@
   <head>
     <meta charset="utf-8" />
     <title>DM Tools</title>
-    <link rel="stylesheet" href="/css/character.css" />
+
+    <!-- CSS (use repo-root path or relative) -->
+    <link rel="stylesheet" href="/dungeon-crawl-site/css/character.css" />
+    <!-- (Optional) add a dedicated DM stylesheet later -->
+    <!-- <link rel="stylesheet" href="/dungeon-crawl-site/css/dm.css" /> -->
+
+    <!-- Supabase SDK (must load before your client and dm.js) -->
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+    ></script>
   </head>
   <body style="max-width: 860px; margin: 24px auto; padding: 16px">
     <h2>DM: Grant Achievement / Loot Box</h2>
     <div id="dmApp" class="box">
       <div class="row">
-        <label
-          >Character:
-          <select id="dmChar"></select>
+        <label>
+          Character:
+          <select id="dmChar">
+            <option value="">Loading…</option>
+          </select>
         </label>
-        <label
-          >Rarity:
+        <label>
+          Rarity:
           <select id="dmRarity">
             <option>common</option>
             <option>uncommon</option>
@@ -39,11 +51,12 @@
       <div id="dmMsg" class="muted" style="margin-top: 8px"></div>
     </div>
 
+    <!-- Your client factory (creates the Supabase client) -->
     <script
       defer
-      src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
+      src="/dungeon-crawl-site/js/supabase-client.js?v=dm2"
     ></script>
-    <script defer src="/dungeon-crawl-site/js/supabase-client.js"></script>
-    <script defer src="/dungeon-crawl-site/js/dm.js"></script>
+    <!-- Your DM logic (uses the client) -->
+    <script defer src="/dungeon-crawl-site/js/dm.js?v=dm2"></script>
   </body>
 </html>
