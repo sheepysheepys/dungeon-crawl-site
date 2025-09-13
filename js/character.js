@@ -58,55 +58,34 @@ function renderHope(ch) {
 }
 
 async function fetchAwardsAndLoot(characterId) {
-  // achievements / awards
-  const { data: awards, error: aErr } = await sb
-    .from('awards')
-    .select('id, description, created_at')
+  const { data: achievements } = await sb
+    .from('achievements')
+    .select('id, title, description, awarded_at')
     .eq('character_id', characterId)
-    .order('created_at', { ascending: false });
+    .order('awarded_at', { ascending: false });
 
-  if (aErr) {
-    console.error('[awards] fetch', aErr);
-    return { awards: [], loot: [] };
-  }
-
-  // loot boxes (pending + opened — we’ll badge only pending)
-  const { data: loot, error: lErr } = await sb
-    .from('loot_boxes')
-    .select('id, rarity, status, created_at')
-    .eq('character_id', characterId)
-    .order('created_at', { ascending: false });
-
-  if (lErr) {
-    console.error('[loot] fetch', lErr);
-    return { awards, loot: [] };
-  }
-
-  return { awards: awards || [], loot: loot || [] };
-}
-
-function renderAwardsList(list) {
-  const wrap = document.getElementById('awardsList');
-  if (!wrap) return;
-  if (!list.length) {
-    wrap.innerHTML = `<div class="tinybars">No achievements yet.</div>`;
-    return;
-  }
-  wrap.innerHTML = list
-    .map(
-      (a) => `
+  function renderAwardsList(list) {
+    const wrap = document.getElementById('awardsList');
+    if (!wrap) return;
+    if (!list?.length) {
+      wrap.innerHTML = `<div class="tinybars">No achievements yet.</div>`;
+      return;
+    }
+    wrap.innerHTML = list
+      .map(
+        (a) => `
     <div class="row">
       <div>
-        <div>${
-          a.description ? escapeHtml(a.description) : '(Achievement)'
-        }</div>
-        <div class="meta">${new Date(a.created_at).toLocaleString()}</div>
+        <div><strong>${escapeHtml(a.title)}</strong></div>
+        ${a.description ? `<div>${escapeHtml(a.description)}</div>` : ``}
+        <div class="meta">${new Date(a.awarded_at).toLocaleString()}</div>
       </div>
       <div></div>
     </div>
   `
-    )
-    .join('');
+      )
+      .join('');
+  }
 }
 
 function renderLootList(list) {
