@@ -248,6 +248,10 @@
           <div class="tab" data-tab="inventory">Inventory</div>
           <div class="tab" data-tab="notes">Notes</div>
           <div class="tab" data-tab="viewership">Viewership</div>
+          <div class="tab" data-page="awards">
+            Awards & Loot
+            <span id="lootBadge" class="badge" style="display: none">0</span>
+          </div>
         </nav>
 
         <section class="page active" id="page-abilities">
@@ -389,6 +393,18 @@
         </section>
 
         <section class="page" id="page-viewership">
+          <section id="page-awards" class="page">
+            <div class="card" style="margin-bottom: 16px">
+              <h3 style="margin: 0 0 8px">Pending Loot Boxes</h3>
+              <div id="lootList" class="list"></div>
+            </div>
+
+            <div class="card">
+              <h3 style="margin: 0 0 8px">Achievements</h3>
+              <div id="awardsList" class="list"></div>
+            </div>
+          </section>
+
           <div class="grid stats3">
             <div class="box">
               <span class="label-corner">Fans</span>
@@ -501,6 +517,8 @@
     <script defer src="/dungeon-crawl-site/js/features/inventory.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/equipment.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/abilities.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/awards-loot.js"></script>
+
     <script
       defer
       src="/dungeon-crawl-site/js/features/equipment-ui.js"

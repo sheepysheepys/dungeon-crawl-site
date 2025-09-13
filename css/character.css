@@ -378,6 +378,49 @@ textarea {
   display: block;
 }
 
+.tab {
+  position: relative;
+}
+
+.badge {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 6px;
+  font-size: 12px;
+  line-height: 18px;
+  border-radius: 10px;
+  background: var(--accent);
+  color: var(--bg);
+  font-weight: 700;
+  position: absolute;
+  top: -6px;
+  right: -10px;
+}
+
+.list .row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  margin-bottom: 8px;
+}
+.list .row .meta {
+  opacity: 0.8;
+  font-size: 12px;
+  margin-top: 2px;
+}
+.btn-ghost {
+  border: 1px solid var(--line);
+  background: transparent;
+  color: var(--text);
+  border-radius: 8px;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
 /* ===== MODALS ===== */
 .modal-backdrop {
   position: fixed;

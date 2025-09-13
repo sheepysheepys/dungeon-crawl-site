@@ -57,6 +57,122 @@ function renderHope(ch) {
       : '●'.repeat(val) + '○'.repeat(5 - val);
 }
 
+async function fetchAwardsAndLoot(characterId) {
+  // achievements / awards
+  const { data: awards, error: aErr } = await sb
+    .from('awards')
+    .select('id, description, created_at')
+    .eq('character_id', characterId)
+    .order('created_at', { ascending: false });
+
+  if (aErr) {
+    console.error('[awards] fetch', aErr);
+    return { awards: [], loot: [] };
+  }
+
+  // loot boxes (pending + opened — we’ll badge only pending)
+  const { data: loot, error: lErr } = await sb
+    .from('loot_boxes')
+    .select('id, rarity, status, created_at')
+    .eq('character_id', characterId)
+    .order('created_at', { ascending: false });
+
+  if (lErr) {
+    console.error('[loot] fetch', lErr);
+    return { awards, loot: [] };
+  }
+
+  return { awards: awards || [], loot: loot || [] };
+}
+
+function renderAwardsList(list) {
+  const wrap = document.getElementById('awardsList');
+  if (!wrap) return;
+  if (!list.length) {
+    wrap.innerHTML = `<div class="tinybars">No achievements yet.</div>`;
+    return;
+  }
+  wrap.innerHTML = list
+    .map(
+      (a) => `
+    <div class="row">
+      <div>
+        <div>${
+          a.description ? escapeHtml(a.description) : '(Achievement)'
+        }</div>
+        <div class="meta">${new Date(a.created_at).toLocaleString()}</div>
+      </div>
+      <div></div>
+    </div>
+  `
+    )
+    .join('');
+}
+
+function renderLootList(list) {
+  const wrap = document.getElementById('lootList');
+  const badge = document.getElementById('lootBadge');
+  if (!wrap) return;
+  const pending = list.filter((x) => x.status === 'pending');
+
+  // badge
+  if (badge) {
+    if (pending.length > 0) {
+      badge.textContent = String(pending.length);
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  if (!list.length) {
+    wrap.innerHTML = `<div class="tinybars">No loot boxes yet.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = list
+    .map(
+      (lb) => `
+    <div class="row">
+      <div>
+        <div>${capitalize(lb.rarity)} Box ${
+        lb.status === 'pending' ? '— <em>Unopened</em>' : '— Opened'
+      }</div>
+        <div class="meta">${new Date(lb.created_at).toLocaleString()}</div>
+      </div>
+      <div>
+        ${
+          lb.status === 'pending'
+            ? `<button class="btn-ghost" data-open-loot="${lb.id}">Open</button>`
+            : ``
+        }
+      </div>
+    </div>
+  `
+    )
+    .join('');
+}
+
+async function renderAwardsAndLoot(characterId) {
+  const { awards, loot } = await fetchAwardsAndLoot(characterId);
+  renderAwardsList(awards);
+  renderLootList(loot);
+}
+
+// small utils
+function escapeHtml(s) {
+  return String(s).replace(
+    /[&<>"']/g,
+    (m) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[
+        m
+      ])
+  );
+}
+function capitalize(s) {
+  return (s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+}
+
 // -- MUTATIONS --
 async function adjustHP(delta) {
   const client = window.sb;
@@ -119,6 +235,8 @@ window.addEventListener('character:ready', (e) => {
   renderHP(ch);
   renderHope(ch);
   App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
+  App?.Features?.awards?.subscribe?.(ch.id);
+  App?.Features?.awards?.render?.(ch.id);
 });
 
 // ================= INIT =================
@@ -170,6 +288,48 @@ async function init() {
   } catch (e) {
     console.warn('[stats] unexpected', e);
   }
+
+  function subscribeAwardsAndLoot(characterId) {
+    // Awards
+    sb.channel('awards:' + characterId)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'awards',
+          filter: `character_id=eq.${characterId}`,
+        },
+        async () => {
+          // Update lists/badge if the tab is visible; always update badge
+          await renderAwardsAndLoot(characterId);
+        }
+      )
+      .subscribe();
+
+    // Loot boxes
+    sb.channel('loot_boxes:' + characterId)
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'loot_boxes',
+          filter: `character_id=eq.${characterId}`,
+        },
+        async () => {
+          await renderAwardsAndLoot(characterId);
+        }
+      )
+      .subscribe();
+  }
+
+  window.addEventListener('character:ready', (e) => {
+    const ch = e.detail;
+    subscribeAwardsAndLoot(ch.id);
+    // Also render so the badge is correct even before visiting the tab
+    renderAwardsAndLoot(ch.id);
+  });
 
   // header/meta
   setText?.('charName', c.name ?? '—');
@@ -430,6 +590,15 @@ document.addEventListener('click', (e) => {
     return;
   }
 
+  // === Open Loot Box ===
+  const openBtn = e.target.closest('[data-open-loot]');
+  if (openBtn) {
+    e.preventDefault();
+    const lootId = openBtn.getAttribute('data-open-loot');
+    if (lootId) App?.Features?.awards?.openLootBox?.(lootId);
+    return;
+  }
+
   // =========== Damage Calculator modal ===========
   const dmgOpen = e.target.closest('#btnDamageCalc');
   const dmgClose = e.target.closest('#btnCloseModal');
@@ -458,6 +627,7 @@ document.addEventListener('click', (e) => {
       if (n) adjustHP(-n);
       back?.classList.remove('show');
     }
+
     return;
   }
 
@@ -873,6 +1043,8 @@ async function renderActiveWeapons() {
         await App.Features.equipment.computeAndRenderArmor?.(id);
       } else if (tabName === 'abilities') {
         await App.Features.abilities.render?.(id);
+      } else if (tabName === 'awards') {
+        await App.Features.awards.render?.(id);
       }
     } catch (err) {
       console.error('[tabs] error while rendering tab', tabName, err);
