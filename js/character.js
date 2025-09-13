@@ -212,6 +212,7 @@ async function init() {
   wireLevelUp();
   wireRests();
   wireDamageCalc();
+  wireHpAndHope();
 
   setText?.('msg', '');
 }
@@ -545,6 +546,25 @@ function wireRests() {
       }
       closeRestModal();
     });
+}
+
+// ================= HP & HOPE BUTTONS =================
+function wireHpAndHope() {
+  // HP +/-
+  document
+    .getElementById('btnHpPlus')
+    ?.addEventListener('click', () => adjustHP(+1));
+  document
+    .getElementById('btnHpMinus')
+    ?.addEventListener('click', () => adjustHP(-1));
+
+  // Hope +/-
+  document
+    .getElementById('btnHopePlus')
+    ?.addEventListener('click', () => adjustHope(+1));
+  document
+    .getElementById('btnHopeMinus')
+    ?.addEventListener('click', () => adjustHope(-1));
 }
 
 let _restMode = 'short'; // 'short' | 'long'
