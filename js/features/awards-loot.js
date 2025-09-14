@@ -132,6 +132,11 @@
 
   async function render(characterId) {
     const { achievements, loot } = await fetchAwardsAndLoot(characterId);
+    console.log('[awards-loot] counts', {
+      achievements: achievements.length,
+      loot: loot.length,
+      characterId,
+    });
     renderAchievements(achievements);
     renderLoot(loot);
   }
