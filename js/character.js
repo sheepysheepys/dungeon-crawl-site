@@ -995,18 +995,24 @@ async function renderActiveWeapons() {
   document.addEventListener('click', async (e) => {
     const t = e.target.closest('.tab');
     if (!t) return;
-    e.preventDefault();
 
+    // Prevent default only if it's an anchor-like element
+    if (t.tagName === 'A' || t.hasAttribute('href')) e.preventDefault();
+
+    // Read either data-page or data-tab
+    const tabName = t.dataset.page || t.dataset.tab;
+    if (!tabName) return;
+
+    // Toggle active tab
     document
       .querySelectorAll('.tab')
-      .forEach((x) => x.classList.remove('active'));
+      .forEach((x) => x.classList.toggle('active', x === t));
+
+    // Toggle visible page
+    const pageId = `page-${tabName}`;
     document
       .querySelectorAll('.page')
-      .forEach((x) => x.classList.remove('active'));
-    t.classList.add('active');
-
-    const tabName = t.dataset.tab;
-    document.getElementById('page-' + tabName)?.classList.add('active');
+      .forEach((p) => p.classList.toggle('active', p.id === pageId));
 
     const id = window.AppState?.character?.id;
     if (!id) return;
@@ -1031,6 +1037,7 @@ async function renderActiveWeapons() {
     }
   });
 
+  // Kick off the initially active tab if present
   const initiallyActive = document.querySelector('.tab.active');
   if (initiallyActive) initiallyActive.click();
 })();

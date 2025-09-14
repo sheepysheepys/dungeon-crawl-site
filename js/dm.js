@@ -107,7 +107,6 @@
     }
   }
 
-  // Bind after everything is defined and after styles load (avoids FOUC warning too)
   window.addEventListener('load', () => {
     document
       .getElementById('btnGrantAch')
