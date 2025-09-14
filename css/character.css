@@ -371,11 +371,11 @@ textarea {
   background: #151923;
 }
 .page {
-  display: none;
+  display: none !important; /* ensure nothing overrides this */
   padding: 12px 0 24px;
 }
 .page.active {
-  display: block;
+  display: block !important; /* ensure it shows when active */
 }
 
 .tab {
@@ -907,4 +907,14 @@ textarea {
 .rarity-legendary {
   border-color: #ffb703;
   color: #ffe9b3;
+}
+
+/* Empty-state pill used by awards/loot renderers */
+.tinybars {
+  padding: 8px 10px;
+  border: 1px dashed var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--muted);
+  font-size: 13px;
 }
