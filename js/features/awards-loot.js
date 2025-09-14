@@ -1,7 +1,7 @@
 // /js/features/awards-loot.js
 (() => {
   // Use the actual Supabase client instance (not the SDK namespace)
-  const sb = window.sb || window.supabaseClient;
+  const sb = window.sb || window.supabaseClient || window.supabase?.client;
   if (!sb) {
     console.error(
       '[awards-loot] Supabase client missing. Make sure supabase-client.js runs before this file.'
@@ -28,12 +28,20 @@
     s = String(s ?? '');
     return s ? s[0].toUpperCase() + s.slice(1) : '';
   }
+  function fmtDateOnly(ts) {
+    if (!ts) return '';
+    return new Date(ts).toLocaleDateString(undefined, {
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric',
+    });
+  }
 
   // ---------- data ----------
   async function fetchAwardsAndLoot(characterId) {
     if (!sb) return { achievements: [], loot: [] };
 
-    // Achievements (your table)
+    // Achievements
     const { data: achievements, error: aErr } = await sb
       .from('achievements')
       .select('id, title, description, awarded_at')
@@ -42,10 +50,10 @@
 
     if (aErr) console.error('[awards] fetch', aErr);
 
-    // Loot boxes (rarity now exists in this table per your note)
+    // Loot boxes
     const { data: lootRaw, error: lErr } = await sb
       .from('loot_boxes')
-      .select('id, rarity, status, created_at')
+      .select('id, rarity, label, status, created_at, opened_at')
       .eq('character_id', characterId)
       .order('created_at', { ascending: false });
 
@@ -54,8 +62,10 @@
     const loot = (lootRaw || []).map((lb) => ({
       id: lb.id,
       rarity: lb.rarity ?? 'unknown',
+      label: lb.label ?? null,
       status: lb.status ?? 'pending',
       created_at: lb.created_at,
+      opened_at: lb.opened_at ?? null,
     }));
 
     return { achievements: achievements || [], loot };
@@ -76,7 +86,7 @@
         <div>
           <div><strong>${escapeHtml(a.title)}</strong></div>
           ${a.description ? `<div>${escapeHtml(a.description)}</div>` : ``}
-          <div class="meta">${new Date(a.awarded_at).toLocaleString()}</div>
+          <div class="meta">${fmtDateOnly(a.awarded_at)}</div>
         </div>
         <div></div>
       </div>
@@ -92,13 +102,14 @@
 
     const pending = list.filter((x) => x.status === 'pending');
 
-    // badge
+    // badge shows count of unopened only
     if (badge) {
       if (pending.length > 0) {
         badge.textContent = String(pending.length);
         badge.style.display = '';
       } else {
         badge.style.display = 'none';
+        badge.textContent = '';
       }
     }
 
@@ -110,40 +121,39 @@
     wrap.innerHTML = list
       .map(
         (lb) => `
-      <div class="row">
+      <div class="row" data-loot-row="${lb.id}">
         <div>
-          <div>${cap(lb.rarity)} Box — ${
-          lb.status === 'pending' ? '<em>Unopened</em>' : 'Opened'
-        }</div>
-          <div class="meta">${new Date(lb.created_at).toLocaleString()}</div>
+          <div><strong>${escapeHtml(
+            lb.label || `${cap(lb.rarity)} Box`
+          )}</strong></div>
+          <div class="meta">Granted: ${fmtDateOnly(lb.created_at)}</div>
         </div>
         <div>
           ${
             lb.status === 'pending'
               ? `<button class="btn-ghost" data-open-loot="${lb.id}">Open</button>`
-              : ``
+              : `<span class="pill">Opened</span>`
           }
         </div>
       </div>
+      <div class="reveal" id="lootReveal-${
+        lb.id
+      }" style="margin: 4px 0 0 0;"></div>
     `
       )
       .join('');
   }
 
   async function render(characterId) {
+    if (!characterId) return;
     const { achievements, loot } = await fetchAwardsAndLoot(characterId);
-    console.log('[awards-loot] counts', {
-      achievements: achievements.length,
-      loot: loot.length,
-      characterId,
-    });
     renderAchievements(achievements);
     renderLoot(loot);
   }
 
   // ---------- realtime ----------
   function subscribe(characterId) {
-    if (!sb) return;
+    if (!sb || !characterId) return;
 
     // Achievements: new rows
     sb.channel('achievements:' + characterId)
@@ -159,12 +169,12 @@
       )
       .subscribe();
 
-    // Loot boxes: watch inserts & updates (status changes when opened)
+    // Loot boxes: new box granted (INSERT). (We re-render after open via JS.)
     sb.channel('loot_boxes:' + characterId)
       .on(
         'postgres_changes',
         {
-          event: '*',
+          event: 'INSERT',
           schema: 'public',
           table: 'loot_boxes',
           filter: `character_id=eq.${characterId}`,
@@ -176,8 +186,8 @@
 
   // ---------- actions ----------
   async function openLootBox(lootBoxId) {
-    if (!sb) return;
-    // Requires an RPC that: validates ownership, rolls items, updates status='opened', returns loot
+    if (!sb || !lootBoxId) return;
+
     const { data, error } = await sb.rpc('rpc_open_loot_box', {
       p_loot_box_id: lootBoxId,
     });
@@ -186,22 +196,45 @@
       window.setText?.('msg', 'Failed to open loot box.');
       return;
     }
-    const chId = window.AppState?.character?.id;
-    if (chId) {
-      // refresh inventory and re-render lists/badge
-      window.App?.Features?.inventory?.load?.(chId, { force: true });
-      await render(chId);
+
+    // Show reveal inline (list of items) if RPC returned them
+    try {
+      const items = Array.isArray(data) ? data : [];
+      const host = document.getElementById(`lootReveal-${lootBoxId}`);
+      if (host) {
+        if (!items.length) {
+          host.innerHTML = `<div class="tinybars">No items in this box.</div>`;
+        } else {
+          host.innerHTML = `
+            <div class="list" style="margin-top:6px">
+              ${items
+                .map(
+                  (it) => `
+                <div class="row">
+                  <div><strong>${escapeHtml(
+                    it.name ?? `Item ${it.item_id}`
+                  )}</strong></div>
+                  <div class="pill">x${it.qty ?? 1}</div>
+                </div>
+              `
+                )
+                .join('')}
+            </div>
+          `;
+        }
+      }
+    } catch (e) {
+      console.warn('[loot] reveal render failed', e);
     }
-    // Optional: reveal modal
-    // window.App?.UI?.showLootReveal?.(data);
+
+    // Refresh to flip the button → "Opened" and update badge
+    const chId = window.AppState?.character?.id;
+    if (chId) await render(chId);
+    // Optionally refresh inventory: App?.Features?.inventory?.load?.(chId, { force: true });
   }
 
   // ---------- expose ----------
   window.App = window.App || {};
   window.App.Features = window.App.Features || {};
-  window.App.Features.awards = {
-    render,
-    subscribe,
-    openLootBox,
-  };
+  window.App.Features.awards = { render, subscribe, openLootBox };
 })();
