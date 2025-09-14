@@ -14,7 +14,6 @@
   const { createClient } = window.supabase;
   const client = createClient(url, anon, { auth: { persistSession: true } });
 
-  // expose on common globals
   window.sb = client;
   window.supabaseClient = client;
 })();
