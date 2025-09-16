@@ -19,13 +19,24 @@
         `.silhouette .slot-region[data-slot="${slot}"]`
       );
       if (!node) return;
-      node.classList.toggle('active', !!state[slot]);
-      const label = names[slot]
-        ? `Over-armor: ${names[slot]}`
-        : state[slot]
-        ? 'Over-armor equipped'
-        : 'Exo only';
-      node.setAttribute('title', label);
+
+      // clear old states
+      node.classList.remove('state-armor', 'state-exo', 'state-none');
+
+      // decide which state applies
+      if (state[slot] === 'armor') {
+        node.classList.add('state-armor');
+        node.setAttribute(
+          'title',
+          names[slot] ? `Armor: ${names[slot]}` : 'Armor equipped'
+        );
+      } else if (state[slot] === 'exo') {
+        node.classList.add('state-exo');
+        node.setAttribute('title', 'Exoskin only');
+      } else {
+        node.classList.add('state-none');
+        node.setAttribute('title', 'Empty');
+      }
     });
   }
 
