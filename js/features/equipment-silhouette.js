@@ -9,14 +9,14 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
   const num = (el) =>
-    el ? parseInt(String(el.textContent || '').replace(/[^\d-]/g, ''), 10) || 0 : 0;
+    el
+      ? parseInt(String(el.textContent || '').replace(/[^\d-]/g, ''), 10) || 0
+      : 0;
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
   // Alias selectors: color ALL nodes representing a logical slot
   const SLOT_SELECTORS = {
-    head: [
-      '.silhouette .overlay .slot-region[data-slot="head"]',
-    ],
+    head: ['.silhouette .overlay .slot-region[data-slot="head"]'],
     chest: [
       '.silhouette .overlay .slot-region[data-slot="chest"]',
       '.silhouette .overlay .slot-region[data-slot="torso"]',
@@ -102,12 +102,19 @@
 
   function paintTotals() {
     const exo = clamp(num($('#exoOn')), 0, 5);
-    const armorCount = SIL_SLOTS.reduce((c, k) => c + (colorState[k] === 'armor' ? 1 : 0), 0);
+    const armorCount = SIL_SLOTS.reduce(
+      (c, k) => c + (colorState[k] === 'armor' ? 1 : 0),
+      0
+    );
     const protection = exo + armorCount;
 
-    $('#silExoLeft')?.textContent = String(exo);
-    $('#silArmorCount')?.textContent = String(armorCount);
-    $('#silProtectionTotal')?.textContent = String(protection);
+    // safe assignments (no optional chaining on LHS)
+    const exoEl = $('#silExoLeft');
+    if (exoEl) exoEl.textContent = String(exo);
+    const armorEl = $('#silArmorCount');
+    if (armorEl) armorEl.textContent = String(armorCount);
+    const protEl = $('#silProtectionTotal');
+    if (protEl) protEl.textContent = String(protection);
 
     const pips = $$('.totals .pips .pip');
     pips.forEach((p, i) => p.classList.toggle('filled', i < exo));
@@ -149,7 +156,7 @@
     // decide visual state per slot (armor overrides exo)
     SIL_SLOTS.forEach((sil) => {
       const agg = bySil[sil] || { seg: 0, exo: 0 };
-      colorState[sil] = agg.seg > 0 ? 'armor' : (agg.exo > 0 ? 'exo' : 'none');
+      colorState[sil] = agg.seg > 0 ? 'armor' : agg.exo > 0 ? 'exo' : 'none';
     });
 
     updateAll();
@@ -186,7 +193,8 @@
     const exoNode = $('#exoOn');
     if (exoNode) new MutationObserver(paintTotals).observe(exoNode, cfg);
     const strippedNode = $('#strippedPieces');
-    if (strippedNode) new MutationObserver(paintTotals).observe(strippedNode, cfg);
+    if (strippedNode)
+      new MutationObserver(paintTotals).observe(strippedNode, cfg);
   }
 
   function init() {
@@ -199,8 +207,8 @@
   window.App.Features.EquipmentSilhouette = {
     init,
     updateFromEquipmentRows, // ← call this after equipment fetch/renders
-    setSlot,                 // legacy
-    setSlots,                // legacy
+    setSlot, // legacy
+    setSlots, // legacy
     clear,
     getState() {
       return { colors: { ...colorState }, names: { ...names } };
