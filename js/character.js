@@ -7,16 +7,27 @@ console.log('[character] start', {
   hasInvLogic: !!window.App?.Logic?.inventory,
 });
 
-// ================= HP / HOPE =================
-
-// Central way to set the character and notify UI
+// ================= STATE & UTIL =================
 function setCharacter(ch) {
   window.AppState = window.AppState || {};
   window.AppState.character = ch;
   window.dispatchEvent(new CustomEvent('character:ready', { detail: ch }));
 }
 
-// -- RENDERERS --
+function escapeHtml(s) {
+  return String(s).replace(
+    /[&<>"']/g,
+    (m) =>
+      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[
+        m
+      ])
+  );
+}
+function capitalize(s) {
+  return (s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+}
+
+// ================= RENDERERS =================
 function renderHP(ch) {
   const elCur = document.getElementById('hpCurrent');
   const elTot = document.getElementById('hpTotal');
@@ -25,17 +36,13 @@ function renderHP(ch) {
     console.warn('[HP] missing DOM');
     return;
   }
-
   const total = Number(ch?.hp_total ?? 0);
   const current = Math.max(0, Math.min(total, Number(ch?.hp_current ?? 0)));
-
   elCur.textContent = String(current);
   elTot.textContent = String(total);
+  elBar.style.width =
+    (total > 0 ? (current / total) * 100 : 0).toFixed(2) + '%';
 
-  const pct = total > 0 ? (current / total) * 100 : 0;
-  elBar.style.width = pct.toFixed(2) + '%';
-
-  // Use your existing columns:
   const tMinor = Number(ch?.dmg_minor ?? Math.round(total * 0.25));
   const tMajor = Number(ch?.dmg_major ?? Math.round(total * 0.5));
   const tSevere = Number(ch?.dmg_severe ?? Math.round(total * 0.75));
@@ -57,102 +64,7 @@ function renderHope(ch) {
       : '●'.repeat(val) + '○'.repeat(5 - val);
 }
 
-async function fetchAwardsAndLoot(characterId) {
-  const { data: achievements } = await sb
-    .from('achievements')
-    .select('id, title, description, awarded_at')
-    .eq('character_id', characterId)
-    .order('awarded_at', { ascending: false });
-
-  function renderAwardsList(list) {
-    const wrap = document.getElementById('awardsList');
-    if (!wrap) return;
-    if (!list?.length) {
-      wrap.innerHTML = `<div class="tinybars">No achievements yet.</div>`;
-      return;
-    }
-    wrap.innerHTML = list
-      .map(
-        (a) => `
-    <div class="row">
-      <div>
-        <div><strong>${escapeHtml(a.title)}</strong></div>
-        ${a.description ? `<div>${escapeHtml(a.description)}</div>` : ``}
-        <div class="meta">${new Date(a.awarded_at).toLocaleString()}</div>
-      </div>
-      <div></div>
-    </div>
-  `
-      )
-      .join('');
-  }
-}
-
-function renderLootList(list) {
-  const wrap = document.getElementById('lootList');
-  const badge = document.getElementById('lootBadge');
-  if (!wrap) return;
-  const pending = list.filter((x) => x.status === 'pending');
-
-  // badge
-  if (badge) {
-    if (pending.length > 0) {
-      badge.textContent = String(pending.length);
-      badge.style.display = '';
-    } else {
-      badge.style.display = 'none';
-    }
-  }
-
-  if (!list.length) {
-    wrap.innerHTML = `<div class="tinybars">No loot boxes yet.</div>`;
-    return;
-  }
-
-  wrap.innerHTML = list
-    .map(
-      (lb) => `
-    <div class="row">
-      <div>
-        <div>${capitalize(lb.rarity)} Box ${
-        lb.status === 'pending' ? '— <em>Unopened</em>' : '— Opened'
-      }</div>
-        <div class="meta">${new Date(lb.created_at).toLocaleString()}</div>
-      </div>
-      <div>
-        ${
-          lb.status === 'pending'
-            ? `<button class="btn-ghost" data-open-loot="${lb.id}">Open</button>`
-            : ``
-        }
-      </div>
-    </div>
-  `
-    )
-    .join('');
-}
-
-async function renderAwardsAndLoot(characterId) {
-  const { awards, loot } = await fetchAwardsAndLoot(characterId);
-  renderAwardsList(awards);
-  renderLootList(loot);
-}
-
-// small utils
-function escapeHtml(s) {
-  return String(s).replace(
-    /[&<>"']/g,
-    (m) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[
-        m
-      ])
-  );
-}
-function capitalize(s) {
-  return (s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
-}
-
-// -- MUTATIONS --
+// ================= HP / HOPE MUTATIONS =================
 async function adjustHP(delta) {
   const client = window.sb;
   const ch = window.AppState?.character;
@@ -165,7 +77,7 @@ async function adjustHP(delta) {
     .from('characters')
     .update({ hp_current: next })
     .eq('id', ch.id)
-    .select('id,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe') // ✅ uses dmg_*
+    .select('id,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe')
     .single();
 
   if (error) {
@@ -207,162 +119,149 @@ async function adjustHope(delta) {
 window.adjustHP = adjustHP;
 window.adjustHope = adjustHope;
 
-// Paint when the character becomes available
-window.addEventListener('character:ready', (e) => {
-  const ch = e.detail;
-  console.log('[character:ready]', { id: ch?.id });
-  renderHP(ch);
-  renderHope(ch);
-  App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
-  App?.Features?.awards?.subscribe?.(ch.id);
-  App?.Features?.awards?.render?.(ch.id);
-});
-
-// ================= INIT =================
-async function init() {
-  if (window.__CHAR_SHEET_INIT_DONE) return;
-  window.__CHAR_SHEET_INIT_DONE = true;
-
-  const client = window.sb;
-  if (!client) {
-    setText?.('msg', 'Supabase client not initialized.');
+// ================= AWARDS & LOOT =================
+function renderAwardsList(list) {
+  const wrap = document.getElementById('awardsList');
+  if (!wrap) return;
+  if (!list?.length) {
+    wrap.innerHTML = `<div class="tinybars">No achievements yet.</div>`;
     return;
   }
-
-  const { data: { user } = {}, error: userErr } = await client.auth.getUser();
-  console.log('[auth] getUser', { user, userErr });
-  if (!user) {
-    setText?.('msg', 'Not logged in.');
-    return;
-  }
-
-  // character
-  const { data: c, error: charErr } = await client
-    .from('characters')
-    .select(
-      'id,user_id,name,race,class,level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes'
+  wrap.innerHTML = list
+    .map(
+      (a) => `
+      <div class="row">
+        <div>
+          <div><strong>${escapeHtml(a.title)}</strong></div>
+          ${a.description ? `<div>${escapeHtml(a.description)}</div>` : ``}
+          <div class="meta">${new Date(a.awarded_at).toLocaleString()}</div>
+        </div>
+        <div></div>
+      </div>`
     )
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (charErr || !c) {
-    setText?.('msg', charErr?.message || 'No character.');
-    return;
-  }
-
-  window.AppState.user = user;
-  setCharacter(c); // ✅ fires character:ready for paints
-
-  // stats (traits)
-  try {
-    const { data: statsRow, error: statsErr } = await client
-      .from('character_stats')
-      .select('*')
-      .eq('character_id', c.id)
-      .maybeSingle();
-    if (statsErr) setText?.('msg', 'Error loading stats: ' + statsErr.message);
-    else renderAllTraits?.(statsRow || {});
-  } catch (e) {
-    console.warn('[stats] unexpected', e);
-  }
-
-  function subscribeAwardsAndLoot(characterId) {
-    // Awards
-    sb.channel('awards:' + characterId)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'awards',
-          filter: `character_id=eq.${characterId}`,
-        },
-        async () => {
-          // Update lists/badge if the tab is visible; always update badge
-          await renderAwardsAndLoot(characterId);
-        }
-      )
-      .subscribe();
-
-    // Loot boxes
-    sb.channel('loot_boxes:' + characterId)
-      .on(
-        'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'loot_boxes',
-          filter: `character_id=eq.${characterId}`,
-        },
-        async () => {
-          await renderAwardsAndLoot(characterId);
-        }
-      )
-      .subscribe();
-  }
-
-  window.addEventListener('character:ready', (e) => {
-    const ch = e.detail;
-    subscribeAwardsAndLoot(ch.id);
-    // Also render so the badge is correct even before visiting the tab
-    renderAwardsAndLoot(ch.id);
-  });
-
-  // header/meta
-  setText?.('charName', c.name ?? '—');
-  setText?.('charRace', c.race ?? '—');
-  setText?.('charClass', c['class'] ?? '—');
-  setText?.('charLevelNum', c.level ?? '—'); // ✅ matches HTML id
-  setText?.('evasion', c.evasion ?? '—');
-  setText?.('ownerEmail', user.email || '—');
-  setText?.('ownerId', c.user_id || '—');
-  setText?.('charId', c.id || '—');
-  setText?.('hpCurrent', c.hp_current ?? 0);
-  setText?.('hpTotal', c.hp_total ?? 0);
-  setText?.('thMinor', c.dmg_minor ?? '—');
-  setText?.('thMajor', c.dmg_major ?? '—');
-  setText?.('thSevere', c.dmg_severe ?? '—');
-  setText?.('hopeDots', fmtDots?.(c.hope_points ?? 0) ?? '');
-  const notesEl = document.getElementById('notes');
-  if (notesEl) notesEl.value = c.notes ?? '';
-
-  await App.Features.inventory.load(c.id, {
-    onEquip: equipFromInventory,
-    onAdjustQty: adjustNonEquipQty,
-  });
-  await App.Features.equipment.load(c.id);
-  await App.Features.equipment.computeAndRenderArmor(c.id);
-  await App.Features.abilities.render?.(c.id);
-  await renderActiveWeapons();
-
-  // quick-add dropdown & name box
-  await populateNonEquipPicker();
-
-  // wire ancillary
-  wireNotesSave();
-  wireLevelUp();
-  // wireRests();
-  // wireDamageCalc();
-  wireHpAndHope();
-
-  setText?.('msg', '');
+    .join('');
 }
 
-// ================= EQUIP FLOW + ABILITY HOOK =================
+function renderLootList(list) {
+  const wrap = document.getElementById('lootList');
+  const badge = document.getElementById('lootBadge');
+  if (!wrap) return;
+  const pending = (list || []).filter((x) => x.status === 'pending');
+
+  if (badge) {
+    if (pending.length > 0) {
+      badge.textContent = String(pending.length);
+      badge.style.display = '';
+    } else {
+      badge.style.display = 'none';
+    }
+  }
+
+  if (!list?.length) {
+    wrap.innerHTML = `<div class="tinybars">No loot boxes yet.</div>`;
+    return;
+  }
+
+  wrap.innerHTML = list
+    .map(
+      (lb) => `
+      <div class="row">
+        <div>
+          <div>${capitalize(lb.rarity)} Box ${
+        lb.status === 'pending' ? '— <em>Unopened</em>' : '— Opened'
+      }</div>
+          <div class="meta">${new Date(lb.created_at).toLocaleString()}</div>
+        </div>
+        <div>
+          ${
+            lb.status === 'pending'
+              ? `<button class="btn-ghost" data-open-loot="${lb.id}">Open</button>`
+              : ``
+          }
+        </div>
+      </div>`
+    )
+    .join('');
+}
+
+async function fetchAwardsAndLoot(characterId) {
+  const client = window.sb;
+
+  const { data: achievements = [] } = await client
+    .from('achievements')
+    .select('id, title, description, awarded_at')
+    .eq('character_id', characterId)
+    .order('awarded_at', { ascending: false });
+
+  const { data: loot = [] } = await client
+    .from('loot_boxes')
+    .select('id, tier, created_at, opened_at')
+    .eq('character_id', characterId)
+    .order('created_at', { ascending: false });
+
+  const lootView = (loot || []).map((lb) => ({
+    id: lb.id,
+    rarity: lb.tier, // renderer expects "rarity" label
+    status: lb.opened_at ? 'opened' : 'pending',
+    created_at: lb.created_at,
+  }));
+
+  return { awards: achievements, loot: lootView };
+}
+
+async function renderAwardsAndLoot(characterId) {
+  const { awards, loot } = await fetchAwardsAndLoot(characterId);
+  renderAwardsList(awards);
+  renderLootList(loot);
+}
+
+function subscribeAwardsAndLoot(characterId) {
+  // Achievements
+  window.sb
+    .channel('achievements:' + characterId)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'achievements',
+        filter: `character_id=eq.${characterId}`,
+      },
+      async () => {
+        await renderAwardsAndLoot(characterId);
+      }
+    )
+    .subscribe();
+
+  // Loot boxes
+  window.sb
+    .channel('loot_boxes:' + characterId)
+    .on(
+      'postgres_changes',
+      {
+        event: 'INSERT',
+        schema: 'public',
+        table: 'loot_boxes',
+        filter: `character_id=eq.${characterId}`,
+      },
+      async () => {
+        await renderAwardsAndLoot(characterId);
+      }
+    )
+    .subscribe();
+}
+
+// ================= EQUIP FLOW + ABILITIES =================
 async function handleAbilityOnEquip(item, slot) {
   if (!item?.ability_id) return;
   const client = window.sb;
   const chId = window.AppState.character.id;
 
-  // one active ability per slot (replace)
   await client
     .from('character_abilities')
     .delete()
     .eq('character_id', chId)
     .eq('slot', slot);
-
   await client.from('character_abilities').insert({
     character_id: chId,
     slot,
@@ -374,7 +273,6 @@ async function equipFromInventory(lineId) {
   const client = window.sb;
   const chId = window.AppState.character.id;
 
-  // 1) read the inventory line + item
   const { data: line, error: qErr } = await client
     .from('character_items')
     .select(
@@ -394,14 +292,12 @@ async function equipFromInventory(lineId) {
     return;
   }
 
-  // 2) clear the slot
   await client
     .from('character_equipment')
     .delete()
     .eq('character_id', chId)
     .eq('slot', slot);
 
-  // 3) insert equipped row (initialize per-slot exo)
   const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(slot);
   await client.from('character_equipment').insert({
     character_id: chId,
@@ -411,10 +307,8 @@ async function equipFromInventory(lineId) {
     exo_left: isArmorSlot ? 1 : 0,
   });
 
-  // 4) ability: one active per slot
   await handleAbilityOnEquip(item, slot);
 
-  // 5) decrement inventory line (equip one copy)
   const nextQty = Math.max(0, Number(line.qty ?? 1) - 1);
   if (nextQty === 0) {
     await client.from('character_items').delete().eq('id', line.id);
@@ -425,7 +319,6 @@ async function equipFromInventory(lineId) {
       .eq('id', line.id);
   }
 
-  // 6) refresh UI
   await App.Features.equipment.load(chId);
   await App.Features.equipment.computeAndRenderArmor(chId);
   await App.Features.inventory.load(chId, {
@@ -435,9 +328,9 @@ async function equipFromInventory(lineId) {
   await App.Features.abilities.render?.(chId);
   await renderActiveWeapons();
 }
-window.equipFromInventory = equipFromInventory; // used by features
+window.equipFromInventory = equipFromInventory;
 
-// ================= NON-EQUIPPABLE QUICK ADD =================
+// ================= NON-EQUIPPABLES =================
 async function addInventoryItemById(itemId, delta) {
   const sb = window.sb;
   const chId = AppState.character.id;
@@ -455,7 +348,6 @@ async function populateNonEquipPicker() {
     .select('id, name')
     .is('slot', null)
     .order('name', { ascending: true });
-
   if (error) {
     console.warn('[invAdd] items error', error);
     return;
@@ -475,7 +367,6 @@ async function populateNonEquipPicker() {
   };
 }
 
-// +/- from inventory list for non-equippables
 async function adjustNonEquipQty(itemId, delta) {
   await addInventoryItemById(itemId, delta);
   await App.Features.inventory.load(AppState.character.id, {
@@ -483,9 +374,8 @@ async function adjustNonEquipQty(itemId, delta) {
     onAdjustQty: adjustNonEquipQty,
   });
 }
-window.adjustNonEquipQty = adjustNonEquipQty; // used by features
+window.adjustNonEquipQty = adjustNonEquipQty;
 
-// Add-by-name box → uses logic module
 async function doAddNameBox() {
   const nameEl = document.getElementById('addItemName');
   const qtyEl = document.getElementById('addItemQty');
@@ -539,425 +429,6 @@ async function doAddNameBox() {
   }
 }
 
-// Delegated click handlers (single source of truth)
-document.addEventListener('click', (e) => {
-  if (!(e.target instanceof Element)) return;
-
-  // =========== Add item ===========
-  const addBtn = e.target.closest('#btnAddItem');
-  if (addBtn) {
-    e.preventDefault();
-    doAddNameBox();
-    return;
-  }
-
-  // =========== HP + / - ===========
-  const hpPlus = e.target.closest('#btnHpPlus');
-  const hpMinus = e.target.closest('#btnHpMinus');
-  if (hpPlus || hpMinus) {
-    e.preventDefault();
-    adjustHP(hpPlus ? +1 : -1);
-    return;
-  }
-
-  // =========== Hope + / - ===========
-  const hopePlus = e.target.closest('#btnHopePlus');
-  const hopeMinus = e.target.closest('#btnHopeMinus');
-  if (hopePlus || hopeMinus) {
-    e.preventDefault();
-    adjustHope(hopePlus ? +1 : -1);
-    return;
-  }
-
-  // === Open Loot Box ===
-  const openBtn = e.target.closest('[data-open-loot]');
-  if (openBtn) {
-    e.preventDefault();
-    const lootId = openBtn.getAttribute('data-open-loot');
-    if (lootId) App?.Features?.awards?.openLootBox?.(lootId);
-    return;
-  }
-
-  // =========== Damage Calculator modal ===========
-  const dmgOpen = e.target.closest('#btnDamageCalc');
-  const dmgClose = e.target.closest('#btnCloseModal');
-  const dmgApply = e.target.closest('#btnApplyDamage');
-  const dmgCalc = e.target.closest('#btnCalc');
-
-  if (dmgOpen || dmgClose || dmgApply || dmgCalc) {
-    e.preventDefault();
-    const back = document.getElementById('modalBack');
-    if (dmgOpen) back?.classList.add('show');
-    if (dmgClose) back?.classList.remove('show');
-
-    if (dmgCalc) {
-      // run your existing calc code (whatever you currently do in the calcBtn handler)
-      // e.g., compute damage preview based on #calcDamage and write to #calcResult
-      const input = document.getElementById('calcDamage');
-      const result = document.getElementById('calcResult');
-      const n = Math.max(0, Number(input?.value || 0));
-      if (result) result.textContent = `Calculated: ${n}`;
-    }
-
-    if (dmgApply) {
-      // run your existing apply code (what you currently do in applyBtn handler)
-      const input = document.getElementById('calcDamage');
-      const n = Math.max(0, Number(input?.value || 0));
-      if (n) adjustHP(-n);
-      back?.classList.remove('show');
-    }
-
-    return;
-  }
-
-  // =========== Rest modal ===========
-  const shortRest = e.target.closest('#btnShortRest');
-  const longRest = e.target.closest('#btnLongRest');
-  const restClose = e.target.closest('#btnCloseRestModal');
-  const restConf = e.target.closest('#btnConfirmRest');
-
-  if (shortRest || longRest || restClose || restConf) {
-    e.preventDefault();
-    if (shortRest) openRestModal('short');
-    if (longRest) openRestModal('long');
-    if (restClose) closeRestModal();
-    if (restConf) {
-      // Your existing confirm logic from wireRests confirmBtn handler
-      // We mimic your code path: read selected option and adjust HP appropriately
-      const checks = Array.from(
-        document.querySelectorAll('#restOptions input[type="checkbox"]')
-      );
-      const recover = checks.filter((c) => c.checked).length;
-      if (recover > 0) adjustHP(+recover); // or call your rests logic
-      closeRestModal();
-    }
-    return;
-  }
-});
-
-// ================= DAMAGE CALCULATOR MODAL =================
-function wireDamageCalc() {
-  const openBtn = document.getElementById('btnDamageCalc');
-  const modal = document.getElementById('modalBack');
-  const close = document.getElementById('btnCloseModal');
-  const calcBtn = document.getElementById('btnCalc');
-  const applyBtn = document.getElementById('btnApplyDamage');
-  const input = document.getElementById('calcDamage');
-  if (!openBtn || !modal) return;
-}
-// ---- tiny helpers for rests ----
-function roll(n, sides) {
-  let sum = 0;
-  for (let i = 0; i < n; i++) sum += Math.floor(Math.random() * sides) + 1;
-  return sum;
-}
-function shuffle(arr) {
-  const a = arr.slice();
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [a[i], a[j]] = [a[j], a[i]];
-  }
-  return a;
-}
-function setupChooseLimit(container, max, confirmBtn) {
-  const checks = Array.from(
-    container.querySelectorAll('input[type="checkbox"]')
-  );
-  const msg = container.querySelector('.rest-msg');
-  function update() {
-    const chosen = checks.filter((c) => c.checked).length;
-    if (chosen > max) {
-      const last = checks.find((c) => c._justClicked);
-      if (last) last.checked = false;
-    }
-    const afterFix = checks.filter((c) => c.checked).length;
-    if (afterFix === 0) {
-      msg.textContent = `Choose up to ${max}.`;
-    } else if (afterFix < max) {
-      msg.textContent = `You can choose ${max - afterFix} more.`;
-    } else {
-      msg.textContent = `You've chosen ${max}.`;
-    }
-    if (confirmBtn) confirmBtn.disabled = afterFix === 0 || afterFix > max;
-    checks.forEach((c) => (c._justClicked = false));
-  }
-  checks.forEach((c) => {
-    c.addEventListener(
-      'click',
-      () => {
-        c._justClicked = true;
-        update();
-      },
-      { capture: true }
-    );
-    c.addEventListener('change', update);
-  });
-  update();
-}
-
-// ================= HP & HOPE BUTTONS =================
-function wireHpAndHope() {
-  // HP +/-
-  document
-    .getElementById('btnHpPlus')
-    ?.addEventListener('click', () => adjustHP(+1));
-  document
-    .getElementById('btnHpMinus')
-    ?.addEventListener('click', () => adjustHP(-1));
-
-  // Hope +/-
-  document
-    .getElementById('btnHopePlus')
-    ?.addEventListener('click', () => adjustHope(+1));
-  document
-    .getElementById('btnHopeMinus')
-    ?.addEventListener('click', () => adjustHope(-1));
-}
-
-let _restMode = 'short'; // 'short' | 'long'
-
-function openRestModal(mode) {
-  _restMode = mode;
-  const title = document.getElementById('restModalTitle');
-  if (title) title.textContent = mode === 'short' ? 'Short Rest' : 'Long Rest';
-  renderRestOptions(mode);
-  document.getElementById('restModalBack')?.classList.add('show');
-}
-function closeRestModal() {
-  document.getElementById('restModalBack')?.classList.remove('show');
-}
-
-async function renderRestOptions(mode) {
-  const root = document.getElementById('restOptions');
-  const confirmBtn = document.getElementById('btnConfirmRest');
-  if (!root) return;
-
-  const client = window.sb;
-  const ch = AppState.character;
-  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
-
-  // (We still fetch equipment; could be used in UI)
-  await client
-    .from('character_equipment')
-    .select(
-      'id, slot, item_id, slots_remaining, exo_left, item:items(name, armor_value)'
-    )
-    .eq('character_id', ch.id)
-    .in('slot', ARMOR_SLOTS);
-
-  if (mode === 'short') {
-    root.innerHTML = `
-      <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
-      <label class="row">
-        <input id="srHP" type="checkbox" />
-        <span>Regain <strong>1d4 HP</strong></span>
-      </label>
-      <label class="row">
-        <input id="srArmor" type="checkbox" />
-        <span>Repair <strong>1d4 armor slots</strong> (+1 each, random damaged slots)</span>
-      </label>
-      <label class="row">
-        <input id="srHope" type="checkbox" />
-        <span>Gain <strong>+1 Hope</strong> (to max 5)</span>
-      </label>
-      <label class="row">
-        <input id="srExo" type="checkbox" />
-        <span>Restore <strong>Exoskin on one slot</strong> (random damaged exo)</span>
-      </label>
-    `;
-  } else {
-    root.innerHTML = `
-      <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
-      <label class="row">
-        <input id="lrFullHeal" type="checkbox" />
-        <span><strong>Tend to all wounds</strong> (HP → max)</span>
-      </label>
-      <label class="row">
-        <input id="lrRepairAll" type="checkbox" />
-        <span><strong>Repair all equipped armor</strong> (does not recreate destroyed armor)</span>
-      </label>
-      <label class="row">
-        <input id="lrHope2" type="checkbox" />
-        <span><strong>Gain +2 Hope</strong> (to max 5)</span>
-      </label>
-      <label class="row" style="align-items:flex-start">
-        <input id="lrProject" type="checkbox" />
-        <span style="display:inline-block">
-          <strong>Work on a project</strong> (+1 tick)<br/>
-          <input id="lrProjectName" type="text" placeholder="Project name…" style="margin-top:6px; width:260px"/>
-        </span>
-      </label>
-      <div class="mono muted" style="margin-top:8px">
-        Exoskin will be restored on <strong>all 5 armor slots</strong> automatically.
-      </div>
-    `;
-  }
-
-  setupChooseLimit(root, 2, confirmBtn);
-}
-
-async function applyShortRestOptions() {
-  const sb = window.sb;
-  const ch = AppState.character;
-
-  const results = await App.Logic.rests.applyShortRest(sb, ch, {
-    hp1d4: document.getElementById('srHP')?.checked,
-    repair1d4: document.getElementById('srArmor')?.checked,
-    hopePlus1: document.getElementById('srHope')?.checked,
-    exoOne: document.getElementById('srExo')?.checked,
-  });
-
-  // repaint HP/Hope right away
-  setText?.('hpCurrent', ch.hp_current);
-  setText?.('hopeDots', fmtDots?.(ch.hope_points) ?? '');
-
-  // armor/exo UI
-  await App.Features.equipment.computeAndRenderArmor(ch.id);
-  await App.Features.equipment.load(ch.id);
-
-  setText?.('msg', `Short rest: ${results.join(' · ')}`);
-}
-
-async function applyLongRestOptions() {
-  const sb = window.sb;
-  const ch = AppState.character;
-
-  const results = await App.Logic.rests.applyLongRest(sb, ch, {
-    fullHeal: document.getElementById('lrFullHeal')?.checked,
-    repairAll: document.getElementById('lrRepairAll')?.checked,
-    hopePlus2: document.getElementById('lrHope2')?.checked,
-    projectName: document.getElementById('lrProject')?.checked
-      ? document.getElementById('lrProjectName')?.value || ''
-      : '',
-  });
-
-  // repaint HP/Hope right away
-  setText?.('hpCurrent', ch.hp_current);
-  setText?.('hopeDots', fmtDots?.(ch.hope_points) ?? '');
-
-  // armor/exo UI
-  await App.Features.equipment.computeAndRenderArmor(ch.id);
-  await App.Features.equipment.load(ch.id);
-
-  setText?.('msg', `Long rest: ${results.join(' · ')}`);
-}
-
-// Ensure each armor slot has a row (exo-only if needed)
-async function ensureExoRowsForAllSlots() {
-  const sb = window.sb;
-  const ch = AppState.character;
-  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
-
-  const { data: existing, error: readErr } = await sb
-    .from('character_equipment')
-    .select('slot')
-    .eq('character_id', ch.id)
-    .in('slot', ARMOR_SLOTS);
-
-  if (readErr) {
-    console.warn('[rest] exo rows read error', readErr);
-    return {
-      ok: false,
-      created: 0,
-      missing: ARMOR_SLOTS.slice(),
-      reason: 'read',
-      error: readErr,
-    };
-  }
-
-  const have = new Set((existing || []).map((r) => r.slot));
-  const missing = ARMOR_SLOTS.filter((s) => !have.has(s));
-  let created = 0;
-
-  if (missing.length) {
-    const inserts = missing.map((slot) => ({
-      character_id: ch.id,
-      slot,
-      item_id: null, // exo-only row
-      slots_remaining: 0,
-      exo_left: 1,
-    }));
-    const { data: ins, error: insErr } = await sb
-      .from('character_equipment')
-      .insert(inserts);
-    if (insErr) {
-      console.warn('[rest] exo rows insert error', insErr, { inserts });
-      return {
-        ok: false,
-        created: 0,
-        missing,
-        reason: 'insert',
-        error: insErr,
-      };
-    }
-    created = (ins && ins.length) || missing.length;
-  }
-
-  return { ok: true, created, missing: [] };
-}
-
-// ================= NOTES SAVE =================
-function wireNotesSave() {
-  document
-    .getElementById('btnSaveNotes')
-    ?.addEventListener('click', async () => {
-      const client = window.sb;
-      const ch = AppState.character;
-      const notesEl = document.getElementById('notes');
-      const notes = notesEl?.value ?? '';
-      const { error } = await client
-        .from('characters')
-        .update({ notes })
-        .eq('id', ch.id);
-      setText?.('msg', error ? 'Failed to save notes.' : 'Notes saved.');
-    });
-}
-
-// ================= LEVEL UP (stub) =================
-function wireLevelUp() {
-  const openBtn = document.getElementById('btnLevelUp');
-  const back = document.getElementById('levelModalBack');
-  const closeBtn = document.getElementById('btnCloseLevelModal');
-  const confirmBtn = document.getElementById('btnConfirmLevelUp');
-
-  openBtn?.addEventListener('click', () => back?.classList.add('show'));
-  closeBtn?.addEventListener('click', () => back?.classList.remove('show'));
-
-  confirmBtn?.addEventListener('click', async () => {
-    const client = window.sb;
-    const ch = window.AppState?.character;
-
-    if (!client) {
-      console.error('[levelup] no supabase client');
-      return;
-    }
-    if (!ch?.id) {
-      console.error('[levelup] no character loaded');
-      return;
-    }
-
-    const next = Number(ch.level ?? 0) + 1;
-
-    const { data, error } = await client
-      .from('characters')
-      .update({ level: next })
-      .eq('id', ch.id)
-      .select('level')
-      .single();
-
-    if (error) {
-      console.error('[levelup] update failed', error);
-      setText?.('msg', 'Level up failed.');
-    } else {
-      ch.level = data.level;
-      setText?.('charLevelNum', String(data.level)); // ✅ matches HTML
-      setText?.('msg', 'Leveled up! (Allocate gains coming soon)');
-    }
-
-    back?.classList.remove('show');
-  });
-}
-
 // ================= ACTIVE WEAPONS CARD =================
 async function renderActiveWeapons() {
   const client = window.sb;
@@ -990,25 +461,126 @@ async function renderActiveWeapons() {
   });
 }
 
-// ================= TABS (event delegation) =================
+// ================= EXO FAILSAFE =================
+async function ensureExoRowsForAllSlots() {
+  const sb = window.sb;
+  const ch = AppState.character;
+  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+
+  const { data: existing, error: readErr } = await sb
+    .from('character_equipment')
+    .select('slot')
+    .eq('character_id', ch.id)
+    .in('slot', ARMOR_SLOTS);
+
+  if (readErr) {
+    console.warn('[rest] exo rows read error', readErr);
+    return {
+      ok: false,
+      created: 0,
+      missing: ARMOR_SLOTS.slice(),
+      reason: 'read',
+      error: readErr,
+    };
+  }
+
+  const have = new Set((existing || []).map((r) => r.slot));
+  const missing = ARMOR_SLOTS.filter((s) => !have.has(s));
+  if (!missing.length) return { ok: true, created: 0, missing: [] };
+
+  const inserts = missing.map((slot) => ({
+    character_id: ch.id,
+    slot,
+    item_id: null,
+    slots_remaining: 0,
+    exo_left: 1,
+  }));
+  const { error: insErr } = await sb
+    .from('character_equipment')
+    .insert(inserts);
+  if (insErr) {
+    console.warn('[rest] exo rows insert error', insErr, { inserts });
+    return { ok: false, created: 0, missing, reason: 'insert', error: insErr };
+  }
+  return { ok: true, created: missing.length, missing: [] };
+}
+
+// ================= BUTTON WIRING =================
+function wireHpAndHope() {
+  document
+    .getElementById('btnHpPlus')
+    ?.addEventListener('click', () => adjustHP(+1));
+  document
+    .getElementById('btnHpMinus')
+    ?.addEventListener('click', () => adjustHP(-1));
+  document
+    .getElementById('btnHopePlus')
+    ?.addEventListener('click', () => adjustHope(+1));
+  document
+    .getElementById('btnHopeMinus')
+    ?.addEventListener('click', () => adjustHope(-1));
+}
+
+// Delegated click handlers
+document.addEventListener('click', (e) => {
+  if (!(e.target instanceof Element)) return;
+
+  // Add item (by name box)
+  if (e.target.closest('#btnAddItem')) {
+    e.preventDefault();
+    doAddNameBox();
+    return;
+  }
+
+  // Open loot box
+  const openBtn = e.target.closest('[data-open-loot]');
+  if (openBtn) {
+    e.preventDefault();
+    const lootId = openBtn.getAttribute('data-open-loot');
+    if (lootId) App?.Features?.awards?.openLootBox?.(lootId);
+    return;
+  }
+
+  // Damage Calculator modal (basic)
+  const dmgOpen = e.target.closest('#btnDamageCalc');
+  const dmgClose = e.target.closest('#btnCloseModal');
+  const dmgApply = e.target.closest('#btnApplyDamage');
+  const dmgCalc = e.target.closest('#btnCalc');
+
+  if (dmgOpen || dmgClose || dmgApply || dmgCalc) {
+    e.preventDefault();
+    const back = document.getElementById('modalBack');
+    if (dmgOpen) back?.classList.add('show');
+    if (dmgClose) back?.classList.remove('show');
+
+    if (dmgCalc) {
+      const input = document.getElementById('calcDamage');
+      const result = document.getElementById('calcResult');
+      const n = Math.max(0, Number(input?.value || 0));
+      if (result) result.textContent = `Calculated: ${n}`;
+    }
+    if (dmgApply) {
+      const input = document.getElementById('calcDamage');
+      const n = Math.max(0, Number(input?.value || 0));
+      if (n) adjustHP(-n);
+      back?.classList.remove('show');
+    }
+  }
+});
+
+// ================= TABS =================
 (function setupTabs() {
   document.addEventListener('click', async (e) => {
     const t = e.target.closest('.tab');
     if (!t) return;
-
-    // Prevent default only if it's an anchor-like element
     if (t.tagName === 'A' || t.hasAttribute('href')) e.preventDefault();
 
-    // Read either data-page or data-tab
     const tabName = t.dataset.page || t.dataset.tab;
     if (!tabName) return;
 
-    // Toggle active tab
     document
       .querySelectorAll('.tab')
       .forEach((x) => x.classList.toggle('active', x === t));
-
-    // Toggle visible page
     const pageId = `page-${tabName}`;
     document
       .querySelectorAll('.page')
@@ -1037,12 +609,170 @@ async function renderActiveWeapons() {
     }
   });
 
-  // Kick off the initially active tab if present
   const initiallyActive = document.querySelector('.tab.active');
   if (initiallyActive) initiallyActive.click();
 })();
 
-// Kickoff
+// ================= INIT =================
+window.addEventListener('character:ready', (e) => {
+  const ch = e.detail;
+  console.log('[character:ready]', { id: ch?.id });
+  renderHP(ch);
+  renderHope(ch);
+  App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
+  App?.Features?.awards?.subscribe?.(ch.id);
+  App?.Features?.awards?.render?.(ch.id);
+});
+
+async function init() {
+  if (window.__CHAR_SHEET_INIT_DONE) return;
+  window.__CHAR_SHEET_INIT_DONE = true;
+
+  const client = window.sb;
+  if (!client) {
+    setText?.('msg', 'Supabase client not initialized.');
+    return;
+  }
+
+  const { data: { user } = {}, error: userErr } = await client.auth.getUser();
+  console.log('[auth] getUser', { user, userErr });
+  if (!user) {
+    setText?.('msg', 'Not logged in.');
+    return;
+  }
+
+  const { data: c, error: charErr } = await client
+    .from('characters')
+    .select(
+      'id,user_id,name,race,class,level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes'
+    )
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (charErr || !c) {
+    setText?.('msg', charErr?.message || 'No character.');
+    return;
+  }
+
+  window.AppState.user = user;
+  setCharacter(c);
+
+  // stats (traits)
+  try {
+    const { data: statsRow, error: statsErr } = await client
+      .from('character_stats')
+      .select('*')
+      .eq('character_id', c.id)
+      .maybeSingle();
+    if (statsErr) setText?.('msg', 'Error loading stats: ' + statsErr.message);
+    else renderAllTraits?.(statsRow || {});
+  } catch (e) {
+    console.warn('[stats] unexpected', e);
+  }
+
+  // realtime + initial awards/loot render
+  subscribeAwardsAndLoot(c.id);
+  await renderAwardsAndLoot(c.id);
+
+  // header/meta
+  setText?.('charName', c.name ?? '—');
+  setText?.('charRace', c.race ?? '—');
+  setText?.('charClass', c['class'] ?? '—');
+  setText?.('charLevelNum', c.level ?? '—');
+  setText?.('evasion', c.evasion ?? '—');
+  setText?.('ownerEmail', user.email || '—');
+  setText?.('ownerId', c.user_id || '—');
+  setText?.('charId', c.id || '—');
+  setText?.('hpCurrent', c.hp_current ?? 0);
+  setText?.('hpTotal', c.hp_total ?? 0);
+  setText?.('thMinor', c.dmg_minor ?? '—');
+  setText?.('thMajor', c.dmg_major ?? '—');
+  setText?.('thSevere', c.dmg_severe ?? '—');
+  setText?.('hopeDots', fmtDots?.(c.hope_points ?? 0) ?? '');
+  const notesEl = document.getElementById('notes');
+  if (notesEl) notesEl.value = c.notes ?? '';
+
+  // features
+  await App.Features.inventory.load(c.id, {
+    onEquip: equipFromInventory,
+    onAdjustQty: adjustNonEquipQty,
+  });
+  await App.Features.equipment.load(c.id);
+  await App.Features.equipment.computeAndRenderArmor(c.id);
+  await App.Features.abilities.render?.(c.id);
+  await renderActiveWeapons();
+  await populateNonEquipPicker();
+
+  // NEW: wire Rests UI (moved to /js/features/rests-ui.js)
+  App.Features?.restsUI?.wireRestUI?.();
+
+  // failsafe: ensure exo rows exist (prevents clothing level from dropping to 0)
+  await ensureExoRowsForAllSlots();
+  await App.Features.equipment.computeAndRenderArmor(c.id);
+
+  // ancillary
+  wireNotesSave();
+  wireLevelUp();
+  wireHpAndHope();
+
+  setText?.('msg', '');
+}
+
+// ================= NOTES SAVE =================
+function wireNotesSave() {
+  document
+    .getElementById('btnSaveNotes')
+    ?.addEventListener('click', async () => {
+      const client = window.sb;
+      const ch = AppState.character;
+      const notesEl = document.getElementById('notes');
+      const notes = notesEl?.value ?? '';
+      const { error } = await client
+        .from('characters')
+        .update({ notes })
+        .eq('id', ch.id);
+      setText?.('msg', error ? 'Failed to save notes.' : 'Notes saved.');
+    });
+}
+
+// ================= LEVEL UP (stub) =================
+function wireLevelUp() {
+  const openBtn = document.getElementById('btnLevelUp');
+  const back = document.getElementById('levelModalBack');
+  const closeBtn = document.getElementById('btnCloseLevelModal');
+  const confirmBtn = document.getElementById('btnConfirmLevelUp');
+
+  openBtn?.addEventListener('click', () => back?.classList.add('show'));
+  closeBtn?.addEventListener('click', () => back?.classList.remove('show'));
+
+  confirmBtn?.addEventListener('click', async () => {
+    const client = window.sb;
+    const ch = window.AppState?.character;
+    if (!client || !ch?.id) return;
+
+    const next = Number(ch.level ?? 0) + 1;
+    const { data, error } = await client
+      .from('characters')
+      .update({ level: next })
+      .eq('id', ch.id)
+      .select('level')
+      .single();
+
+    if (error) {
+      console.error('[levelup] update failed', error);
+      setText?.('msg', 'Level up failed.');
+    } else {
+      ch.level = data.level;
+      setText?.('charLevelNum', String(data.level));
+      setText?.('msg', 'Leveled up! (Allocate gains coming soon)');
+    }
+    back?.classList.remove('show');
+  });
+}
+
+// ================= KICKOFF =================
 if (document.readyState === 'loading') {
   document.addEventListener('DOMContentLoaded', init);
 } else {

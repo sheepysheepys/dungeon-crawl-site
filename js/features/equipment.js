@@ -42,11 +42,6 @@
         el.classList.toggle('filled', i < exoOn);
       });
     }
-
-    // (Optional) If you later add a true progress bar for segment totals,
-    // compute here and set width/text on your chosen IDs.
-    // const curSegments = armorRows.reduce((n, r) => n + Math.max(0, Number(r?.slots_remaining ?? 0)), 0);
-    // const totalSegments = armorRows.reduce((n, r) => n + Math.max(0, Number(r?.item?.armor_value ?? 0)), 0);
   }
 
   // ------- Render helpers -------
