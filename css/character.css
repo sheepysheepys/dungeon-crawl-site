@@ -17,6 +17,11 @@
 
   /* header target height */
   --header-cell-h: 64px;
+
+  /* Silhouette state colors */
+  --exo-color: #28c4b7; /* exoskin */
+  --armor-color: #f2a54a; /* armor segments present */
+  --none-color: rgba(255, 255, 255, 0.08); /* empty */
 }
 
 * {
@@ -121,17 +126,14 @@ body {
   align-items: center;
   gap: 8px;
 }
-
 .level-field .field-label {
   margin-right: 6px;
 }
-
 #btnLevelUp {
   font-size: 13px;
   padding: 4px 10px;
   line-height: 1.2;
 }
-
 .level-pill {
   height: calc(var(--header-cell-h) - 12px);
   min-width: 96px;
@@ -371,17 +373,16 @@ textarea {
   background: #151923;
 }
 .page {
-  display: none !important; /* ensure nothing overrides this */
+  display: none !important;
   padding: 12px 0 24px;
 }
 .page.active {
-  display: block !important; /* ensure it shows when active */
+  display: block !important;
 }
 
 .tab {
   position: relative;
 }
-
 .badge {
   display: inline-block;
   min-width: 18px;
@@ -489,10 +490,9 @@ textarea {
 /*                          TOP GRID LAYOUT                            */
 /* ================================================================== */
 
-/* 50/50 top row; bottom row = Evasion + Hope; Experience wide */
 .top-grid {
   display: grid;
-  grid-template-columns: repeat(4, 1fr); /* 4 equal columns */
+  grid-template-columns: repeat(4, 1fr);
   column-gap: 12px;
   row-gap: 12px;
   align-items: stretch;
@@ -530,7 +530,6 @@ textarea {
   grid-row: 2;
 }
 
-/* Compact variants */
 .box.compact {
   padding: 10px;
 }
@@ -541,7 +540,6 @@ textarea {
   display: none;
 }
 
-/* Responsive */
 @media (max-width: 980px) {
   .top-grid {
     grid-template-columns: 1fr 1fr;
@@ -786,7 +784,7 @@ textarea {
   font-style: italic;
 }
 
-/* Silhouette */
+/* --- Silhouette --- */
 .silhouette-wrap {
   display: grid;
   place-items: center;
@@ -798,6 +796,7 @@ textarea {
   height: auto;
 }
 
+/* Base artwork */
 .silhouette .base circle,
 .silhouette .base rect {
   fill: var(--surface-2);
@@ -805,17 +804,37 @@ textarea {
   stroke-width: 1.25;
   opacity: 0.8;
 }
+
+/* Overlay slot regions default to subtle outline; color via state-* classes */
 .silhouette .overlay .slot-region {
   fill: transparent;
   stroke: var(--line);
   stroke-width: 1.25;
   transition: fill 160ms ease, stroke 160ms ease, opacity 160ms ease;
   opacity: 0.9;
+  cursor: help;
 }
-.silhouette .overlay .slot-region.active {
-  fill: rgba(155, 193, 255, 0.22);
-  stroke: var(--accent);
-  box-shadow: 0 0 0 1px rgba(155, 193, 255, 0.25) inset;
+
+/* State colors */
+.silhouette .overlay .slot-region.state-armor {
+  fill: var(--armor-color);
+  stroke: var(--armor-color);
+}
+.silhouette .overlay .slot-region.state-exo {
+  fill: var(--exo-color);
+  stroke: var(--exo-color);
+}
+.silhouette .overlay .slot-region.state-none {
+  fill: var(--none-color);
+  stroke: var(--line);
+}
+
+/* Hide accessory region when unused */
+.silhouette
+  .overlay
+  .slot-region[data-slot='accessory']:not(.state-armor):not(.state-exo) {
+  opacity: 0;
+  pointer-events: none;
 }
 
 /* Totals strip */
@@ -874,10 +893,6 @@ textarea {
 /* Hover hint for slots */
 .silhouette .overlay .slot-region[title] {
   cursor: help;
-}
-.silhouette .overlay .slot-region[data-slot='accessory']:not(.active) {
-  opacity: 0;
-  pointer-events: none;
 }
 
 /* ===== RARITY PILLS / MISC ===== */

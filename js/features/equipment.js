@@ -166,10 +166,12 @@
 
     await saveEquipmentSlot(ch.id, slot, true);
 
-    await load(ch.id); // equipment tab
-    await computeAndRenderArmor(ch.id); // armor topline
-    if (App.Features?.inventory?.load) {
-      await App.Features.inventory.load(ch.id); // inventory tab (if mounted)
+    async function load(characterId) {
+      const rows = await queryEquipment(characterId);
+      updateArmorTopline(rows);
+      renderEquipmentList(rows);
+      App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows); // <-- add
+      return rows;
     }
   }
 
