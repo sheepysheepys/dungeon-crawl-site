@@ -185,26 +185,50 @@ function renderLootList(list) {
 async function fetchAwardsAndLoot(characterId) {
   const client = window.sb;
 
+  // Achievements unchanged
   const { data: achievements = [] } = await client
     .from('achievements')
     .select('id, title, description, awarded_at')
     .eq('character_id', characterId)
     .order('awarded_at', { ascending: false });
 
-  const { data: loot = [] } = await client
+  // Loot boxes: be defensive about column names
+  const { data: lootRaw = [], error: lootErr } = await client
     .from('loot_boxes')
-    .select('id, tier, created_at, opened_at')
-    .eq('character_id', characterId)
-    .order('created_at', { ascending: false });
+    .select('*') // grab everything to avoid 400 on unknown cols
+    .eq('character_id', characterId);
 
-  const lootView = (loot || []).map((lb) => ({
-    id: lb.id,
-    rarity: lb.tier, // renderer expects "rarity" label
-    status: lb.opened_at ? 'opened' : 'pending',
-    created_at: lb.created_at,
-  }));
+  if (lootErr) {
+    console.warn('[loot] fetch error', lootErr);
+  }
 
-  return { awards: achievements, loot: lootView };
+  // Normalize field names
+  const pickDate = (row) =>
+    row.created_at ||
+    row.created ||
+    row.inserted_at ||
+    row.createdAt ||
+    row.createdat ||
+    null;
+
+  const isOpened = (row) =>
+    // prefer explicit opened_at, else status flags
+    !!(row.opened_at || row.openedAt) ||
+    String(row.status || '').toLowerCase() === 'opened';
+
+  const tier = (row) => row.tier || row.rarity || row.box_tier || 'common';
+
+  // Map to view model and sort by created desc (client-side)
+  const loot = (lootRaw || [])
+    .map((lb) => ({
+      id: lb.id,
+      rarity: tier(lb),
+      status: isOpened(lb) ? 'opened' : 'pending',
+      created_at: pickDate(lb),
+    }))
+    .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+  return { awards: achievements, loot };
 }
 
 async function renderAwardsAndLoot(characterId) {
