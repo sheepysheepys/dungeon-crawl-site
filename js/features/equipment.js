@@ -24,17 +24,24 @@
       ['head', 'chest', 'legs', 'hands', 'feet'].includes(r.slot)
     );
 
-    // 1) Exoskin count (binary per slot: exo_left > 0)
-    const exoOn = armorRows.reduce(
+    // 1) Exo count
+    let exoOn = armorRows.reduce(
       (n, r) => n + (Number(r?.exo_left ?? 0) > 0 ? 1 : 0),
       0
     );
-    const stripped = 5 - exoOn; // 5 armor slots total
 
+    // Fallback: use character.exoskin_slots_remaining when rows are missing or zero
+    if (!armorRows.length || exoOn === 0) {
+      const ch = window.AppState?.character;
+      const fallback = Number(ch?.exoskin_slots_remaining ?? 0);
+      if (fallback > 0) exoOn = Math.min(5, fallback);
+    }
+
+    const stripped = 5 - exoOn;
     setText?.('exoOn', exoOn);
     setText?.('strippedPieces', stripped);
 
-    // 2) Clothing Level ticks (your HTML has 5 .tick divs)
+    // 2) Ticks fill using your CSS (.filled)
     const track = document.querySelector('#armorCard .armor-track');
     if (track) {
       const ticks = Array.from(track.querySelectorAll('.tick')).slice(0, 5);

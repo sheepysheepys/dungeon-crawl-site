@@ -9,7 +9,7 @@
     document.addEventListener('click', onRestClick, true);
   }
 
-  // ========== Event delegation ==========
+  // ========== Event delegation for modal buttons ==========
   async function onRestClick(e) {
     const t = e.target;
     const shortRest = t.closest?.('#btnShortRest');
@@ -102,15 +102,37 @@
         confirmBtn.disabled = count === 0;
         confirmBtn.classList.toggle('disabled', count === 0);
       }
-      if (msg) {
+      if (msg)
         msg.textContent =
           count === 0
             ? `Choose up to ${maxChoices}.`
             : `Selected ${count}/${maxChoices}.`;
-      }
     }
     checks.forEach((c) => c.addEventListener('change', refresh));
     refresh();
+  }
+
+  // ========== Full repaint after rest ==========
+  async function refreshAfterRest() {
+    const client = window.sb;
+    const ch = window.AppState?.character;
+    if (!client || !ch?.id) return;
+
+    // refetch character state
+    const { data } = await client
+      .from('characters')
+      .select(
+        'id,hp_current,hp_total,hope_points,exoskin_slots_max,exoskin_slots_remaining'
+      )
+      .eq('id', ch.id)
+      .maybeSingle();
+    if (data) Object.assign(ch, data);
+
+    // repaint UI
+    if (typeof renderHP === 'function') renderHP(ch);
+    if (typeof renderHope === 'function') renderHope(ch);
+    await App.Features.equipment.computeAndRenderArmor(ch.id);
+    await App.Features.equipment.load(ch.id);
   }
 
   // ========== Apply Short Rest ==========
@@ -126,11 +148,7 @@
       exoOne: document.getElementById('srExo')?.checked,
     });
 
-    setText?.('hpCurrent', ch.hp_current);
-    setText?.('hopeDots', fmtDots?.(ch.hope_points) ?? '');
-    await App.Features.equipment.computeAndRenderArmor(ch.id);
-    await App.Features.equipment.load(ch.id);
-
+    await refreshAfterRest();
     setText?.('msg', `Short rest: ${results.join(' · ')}`);
   }
 
@@ -149,11 +167,7 @@
         : '',
     });
 
-    setText?.('hpCurrent', ch.hp_current);
-    setText?.('hopeDots', fmtDots?.(ch.hope_points) ?? '');
-    await App.Features.equipment.computeAndRenderArmor(ch.id);
-    await App.Features.equipment.load(ch.id);
-
+    await refreshAfterRest();
     setText?.('msg', `Long rest: ${results.join(' · ')}`);
   }
 
