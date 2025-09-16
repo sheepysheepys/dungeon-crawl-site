@@ -823,3 +823,5 @@ if (document.readyState === 'loading') {
 } else {
   init();
 }
+
+console.log('updated 1');
