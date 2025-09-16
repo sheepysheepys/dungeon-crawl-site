@@ -918,3 +918,18 @@ textarea {
   color: var(--muted);
   font-size: 13px;
 }
+
+/* Armor track visuals */
+.armor-track {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+}
+.armor-track .tick {
+  height: 8px;
+  border-radius: 4px;
+  background: var(--line2);
+}
+.armor-track .tick.on {
+  background: var(--good); /* or var(--accent) */
+}

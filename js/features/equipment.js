@@ -11,7 +11,8 @@
     const { data, error } = await client
       .from('character_equipment')
       .select(
-        'id, slot, item_id, slots_remaining, exo_left, item:items(id, name, slot, armor_value, damage)'
+        // pull rarity from joined item if present, plus any local rarity column fallback
+        'id, slot, item_id, slots_remaining, exo_left, rarity, item:items(id, name, slot, armor_value, damage, rarity)'
       )
       .eq('character_id', characterId);
     if (error) console.warn('[equipment] query error', error);
@@ -19,20 +20,81 @@
   }
 
   // ------- Armor topline (Armor card) -------
+  // ------- Armor topline (Armor card) -------
   function updateArmorTopline(rows) {
-    // Exoskin on = count of armor slots where exo_left > 0 (missing row counts as 0)
-    const bySlot = Object.fromEntries(ARMOR_SLOTS.map((s) => [s, null]));
-    (rows || []).forEach((r) => {
-      if (ARMOR_SLOTS.includes(r.slot)) bySlot[r.slot] = r;
-    });
-    const exoOn = ARMOR_SLOTS.reduce((n, s) => {
-      const exo = Number(bySlot[s]?.exo_left ?? 0);
-      return n + (exo > 0 ? 1 : 0);
-    }, 0);
-    const stripped = ARMOR_SLOTS.length - exoOn;
+    const armorRows = (rows || []).filter((r) =>
+      ['head', 'chest', 'legs', 'hands', 'feet'].includes(r.slot)
+    );
+
+    // 1) Exoskin count (binary per slot: exo_left > 0)
+    const exoOn = armorRows.reduce(
+      (n, r) => n + (Number(r?.exo_left ?? 0) > 0 ? 1 : 0),
+      0
+    );
+    const stripped = 5 - exoOn; // 5 armor slots total
 
     setText?.('exoOn', exoOn);
     setText?.('strippedPieces', stripped);
+
+    // 2) Armor segment coverage (clothing/armor level bar)
+    // current = sum(slots_remaining), total = sum(item.armor_value)
+    const curSegments = armorRows.reduce(
+      (n, r) => n + Math.max(0, Number(r?.slots_remaining ?? 0)),
+      0
+    );
+    const totalSegments = armorRows.reduce(
+      (n, r) => n + Math.max(0, Number(r?.item?.armor_value ?? 0)),
+      0
+    );
+
+    // helper: set any available bar/text ids
+    function setBarPair(barId, textId) {
+      const barEl = document.querySelector(`#${barId}`);
+      const txtEl = document.querySelector(`#${textId}`);
+      if (!barEl && !txtEl) return false;
+      const pct =
+        totalSegments > 0
+          ? Math.min(
+              100,
+              Math.max(0, Math.round((curSegments / totalSegments) * 100))
+            )
+          : 0;
+      if (barEl) barEl.style.width = `${pct}%`;
+      if (txtEl) txtEl.textContent = `${curSegments}/${totalSegments}`;
+      return true;
+    }
+
+    // Try preferred IDs first, then fallbacks
+    if (!setBarPair('armorSegmentsBar', 'armorSegmentsText')) {
+      if (!setBarPair('armorBar', 'armorText')) {
+        setBarPair('clothingLevelBar', 'clothingLevelText');
+      }
+    }
+    function updateArmorTopline(rows) {
+      const armorRows = (rows || []).filter((r) =>
+        ['head', 'chest', 'legs', 'hands', 'feet'].includes(r.slot)
+      );
+
+      // 1) Exoskin on (count how many slots have exo_left > 0)
+      const exoOn = armorRows.reduce(
+        (n, r) => n + (Number(r?.exo_left ?? 0) > 0 ? 1 : 0),
+        0
+      );
+      const stripped = 5 - exoOn;
+
+      setText?.('exoOn', exoOn);
+      setText?.('strippedPieces', stripped);
+
+      // 2) Tick UI for Clothing Level (fills from left to right)
+      const track = document.querySelector('#armorCard .armor-track');
+      if (track) {
+        const ticks = Array.from(track.querySelectorAll('.tick'));
+        // ensure we have exactly 5 visual ticks; if more, only use first 5
+        ticks.slice(0, 5).forEach((el, i) => {
+          el.classList.toggle('on', i < exoOn);
+        });
+      }
+    }
   }
 
   // ------- Render helpers -------
@@ -57,7 +119,12 @@
 
     const btn =
       row && row.item_id
-        ? `<button class="btn-bad" data-unequip="${slot}">Unequip</button>`
+        ? `<button class="btn-bad"
+             data-unequip="${slot}"
+             data-item-id="${row.item_id}"
+             data-item-name="${row.item?.name || ''}"
+             data-item-rarity="${row.item?.rarity || row.rarity || 'common'}"
+           >Unequip</button>`
         : '';
 
     // Protection = armor_left + (exo_left ? 1 : 0)
@@ -87,7 +154,14 @@
         </div>
       `;
     }
-    const btn = `<button class="btn-bad" data-unequip="${slot}">Unequip</button>`;
+    const btn = row?.item_id
+      ? `<button class="btn-bad"
+           data-unequip="${slot}"
+           data-item-id="${row.item_id}"
+           data-item-name="${row.item?.name || ''}"
+           data-item-rarity="${row.item?.rarity || row.rarity || 'common'}"
+         >Unequip</button>`
+      : '';
     return `
       <div class="slotCard">
         <div class="row">
@@ -102,6 +176,52 @@
         }
       </div>
     `;
+  }
+
+  // ------- Slot persistence helper -------
+  async function saveEquipmentSlot(characterId, slot, clear = true) {
+    if (clear) {
+      const { error } = await client
+        .from('character_equipment')
+        .delete()
+        .eq('character_id', characterId)
+        .eq('slot', slot);
+      if (error) console.warn('[equipment] clear slot error', error);
+      return;
+    }
+    // (Optional) implement “set equipment” here when you add equip-by-click.
+  }
+
+  // ------- Unequip flow (safe: return to inventory, then clear slot) -------
+  async function unequipItem(slot, meta) {
+    const ch = window.AppState?.character;
+    if (!ch) return;
+
+    // 1) Return the item to inventory via RPC (idempotent upsert)
+    // Needs SQL function `inventory_adjust(p_character uuid, p_item uuid, p_item_name text, p_rarity loot_rarity, p_delta int)`
+    const { error: rpcErr } = await client.rpc('inventory_adjust', {
+      p_character: ch.id,
+      p_item: meta.itemId,
+      p_item_name: meta.itemName,
+      p_rarity: meta.itemRarity || 'common',
+      p_delta: 1,
+    });
+    if (rpcErr) {
+      console.warn('[equipment] inventory_adjust failed', rpcErr);
+      setText?.('msg', 'Could not return item to inventory.');
+      return;
+    }
+
+    // 2) Clear the equipment slot
+    await saveEquipmentSlot(ch.id, slot, true);
+
+    // 3) Refresh UI panes
+    await load(ch.id); // equipment tab
+    await computeAndRenderArmor(ch.id); // armor topline
+    if (App.Features?.inventory?.load) {
+      // inventory tab (if mounted)
+      await App.Features.inventory.load(ch.id);
+    }
   }
 
   // ------- Equipment tab rendering -------
@@ -138,13 +258,13 @@
     // wire unequip buttons
     root.querySelectorAll('[data-unequip]').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        await client
-          .from('character_equipment')
-          .delete()
-          .eq('character_id', window.AppState.character.id)
-          .eq('slot', btn.getAttribute('data-unequip'));
-        await load(window.AppState.character.id); // refresh tab
-        await computeAndRenderArmor(window.AppState.character.id); // refresh topline
+        const slot = btn.getAttribute('data-unequip');
+        const meta = {
+          itemId: btn.getAttribute('data-item-id'),
+          itemName: btn.getAttribute('data-item-name'),
+          itemRarity: btn.getAttribute('data-item-rarity') || 'common',
+        };
+        await unequipItem(slot, meta);
       });
     });
   }
@@ -163,5 +283,6 @@
     return rows;
   }
 
+  App.Features = App.Features || {};
   App.Features.equipment = { load, computeAndRenderArmor };
-})(window.App);
+})(window.App || (window.App = {}));
