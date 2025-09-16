@@ -2,7 +2,7 @@
 (function () {
   window.App = window.App || { Features: {}, Logic: {} };
 
-  // Primary silhouette slots you want to show:
+  // Primary silhouette slots shown in the UI
   const SIL_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
   // Query helpers
@@ -12,7 +12,7 @@
     el ? parseInt(String(el.textContent || '').replace(/[^\d-]/g, ''), 10) || 0 : 0;
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
-  // ALIASES: color all nodes that represent a logical slot
+  // Alias selectors: color ALL nodes representing a logical slot
   const SLOT_SELECTORS = {
     head: [
       '.silhouette .overlay .slot-region[data-slot="head"]',
@@ -58,10 +58,11 @@
   // Three-state color per slot: 'armor' | 'exo' | 'none'
   const colorState = Object.fromEntries(SIL_SLOTS.map((k) => [k, 'none']));
 
-  // (Optional legacy outline names—kept no-op friendly)
+  // (Optional legacy outline labels — safe to keep)
   const equippedState = Object.fromEntries(SIL_SLOTS.map((k) => [k, false]));
   const names = Object.fromEntries(SIL_SLOTS.map((k) => [k, null]));
 
+  // Resolve nodes for a given logical slot
   function partsFor(slot) {
     const sels = SLOT_SELECTORS[slot] || [];
     const nodes = [];
@@ -86,7 +87,7 @@
     });
   }
 
-  // (Optional) legacy label text if you still use it
+  // (Optional) legacy label text if you still toggle equippedState/names
   function paintSlotsLegacyLabels() {
     SIL_SLOTS.forEach((slot) => {
       const nodes = partsFor(slot);
@@ -122,39 +123,39 @@
 
   function updateAll() {
     paintColors();
-    paintSlotsLegacyLabels();
+    paintSlotsLegacyLabels(); // harmless if you don't use the legacy API
     paintTotals();
   }
 
-  // Public API
+  // Public API — drive colors directly from equipment rows
+  // rows: [{ slot, slots_remaining, exo_left, item: { armor_value } }, ...]
   function updateFromEquipmentRows(rows) {
-  // reset states
-  SIL_SLOTS.forEach((k) => {
-    colorState[k] = 'none';
-  });
+    // reset states
+    SIL_SLOTS.forEach((k) => {
+      colorState[k] = 'none';
+    });
 
-  // aggregate by silhouette slot
-  const bySil = {};
-  (rows || []).forEach((r) => {
-    const sil = EQUIP_TO_SIL[r.slot];
-    if (!sil) return;
-    const seg = Math.max(0, Number(r?.slots_remaining || 0));
-    const exo = Number(r?.exo_left || 0) > 0 ? 1 : 0;
-    const cur = bySil[sil] || { seg: 0, exo: 0 };
-    bySil[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
-  });
+    // aggregate by silhouette slot
+    const bySil = {};
+    (rows || []).forEach((r) => {
+      const sil = EQUIP_TO_SIL[r.slot];
+      if (!sil) return;
+      const seg = Math.max(0, Number(r?.slots_remaining || 0));
+      const exo = Number(r?.exo_left || 0) > 0 ? 1 : 0;
+      const cur = bySil[sil] || { seg: 0, exo: 0 };
+      bySil[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
+    });
 
-  // decide visual state per slot (armor overrides exo)
-  SIL_SLOTS.forEach((sil) => {
-    const agg = bySil[sil] || { seg: 0, exo: 0 };
-    colorState[sil] = agg.seg > 0 ? 'armor' : agg.exo > 0 ? 'exo' : 'none';
-  });
+    // decide visual state per slot (armor overrides exo)
+    SIL_SLOTS.forEach((sil) => {
+      const agg = bySil[sil] || { seg: 0, exo: 0 };
+      colorState[sil] = agg.seg > 0 ? 'armor' : (agg.exo > 0 ? 'exo' : 'none');
+    });
 
-  updateAll();
-}
+    updateAll();
+  }
 
-
-  // Optional legacy methods (safe no-ops with new colors)
+  // Optional legacy setters (no effect on colors unless you use them)
   function setSlot(slot, equipped, displayName) {
     if (!SIL_SLOTS.includes(slot)) return;
     equippedState[slot] = !!equipped;
@@ -197,7 +198,7 @@
 
   window.App.Features.EquipmentSilhouette = {
     init,
-    updateFromEquipmentRows, // ← call from equipment.js after fetching rows
+    updateFromEquipmentRows, // ← call this after equipment fetch/renders
     setSlot,                 // legacy
     setSlots,                // legacy
     clear,
