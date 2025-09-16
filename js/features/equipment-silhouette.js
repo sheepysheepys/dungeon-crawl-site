@@ -128,28 +128,31 @@
 
   // Public API
   function updateFromEquipmentRows(rows) {
-    // reset states
-    SIL_SLOTS.forEach((k) => (colorState[k] = 'none'));
+  // reset states
+  SIL_SLOTS.forEach((k) => {
+    colorState[k] = 'none';
+  });
 
-    // aggregate by silhouette slot
-    const bySil = {};
-    (rows || []).forEach((r) => {
-      const sil = EQUIP_TO_SIL[r.slot];
-      if (!sil) return;
-      const seg = Math.max(0, Number(r?.slots_remaining || 0));
-      const exo = Number(r?.exo_left || 0) > 0 ? 1 : 0;
-      const cur = bySil[sil] || { seg: 0, exo: 0 };
-      bySil[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
-    });
+  // aggregate by silhouette slot
+  const bySil = {};
+  (rows || []).forEach((r) => {
+    const sil = EQUIP_TO_SIL[r.slot];
+    if (!sil) return;
+    const seg = Math.max(0, Number(r?.slots_remaining || 0));
+    const exo = Number(r?.exo_left || 0) > 0 ? 1 : 0;
+    const cur = bySil[sil] || { seg: 0, exo: 0 };
+    bySil[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
+  });
 
-    // decide visual state per slot (armor overrides exo)
-    SIL_SLOTS.forEach((sil) => {
-      const agg = bySil[sil] || { seg: 0, exo: 0 };
-      colorState[sil] = agg.seg > 0 ? 'armor' : agg.exo > 0 ? 'exo' : 'none';
-    });
+  // decide visual state per slot (armor overrides exo)
+  SIL_SLOTS.forEach((sil) => {
+    const agg = bySil[sil] || { seg: 0, exo: 0 };
+    colorState[sil] = agg.seg > 0 ? 'armor' : agg.exo > 0 ? 'exo' : 'none';
+  });
 
-    updateAll();
-  }
+  updateAll();
+}
+
 
   // Optional legacy methods (safe no-ops with new colors)
   function setSlot(slot, equipped, displayName) {
