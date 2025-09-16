@@ -563,53 +563,54 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // =========== Damage Calculator modal ===========
+  // ==== Damage Calculator modal (generic preview, no slot spoilers) ====
   const dmgOpen = e.target.closest('#btnDamageCalc');
   const dmgClose = e.target.closest('#btnCloseModal');
-  const dmgApply = e.target.closest('#btnApplyDamage');
   const dmgCalc = e.target.closest('#btnCalc');
+  const dmgApply = e.target.closest('#btnApplyDamage');
 
-  if (dmgOpen || dmgClose || dmgApply || dmgCalc) {
+  if (dmgOpen || dmgClose || dmgCalc || dmgApply) {
     e.preventDefault();
     const back = document.getElementById('modalBack');
-    if (dmgOpen) back?.classList.add('show');
-    if (dmgClose) back?.classList.remove('show');
-
-    // Helpers
     const input = document.getElementById('calcDamage');
     const result = document.getElementById('calcResult');
+
+    if (dmgOpen) {
+      back?.classList.add('show');
+      return;
+    }
+    if (dmgClose) {
+      back?.classList.remove('show');
+      return;
+    }
+
     const n = Math.max(0, Number(input?.value || 0));
 
+    // --- CALCULATE: preview only (NO writes; NO strip) ---
     if (dmgCalc) {
-      // Preview (no writes)
       const chId = AppState?.character?.id;
-      if (App?.Logic?.combat?.previewHit && chId) {
-        const prev = await App.Logic.combat.previewHit(window.sb, chId, n);
-        if (result) {
-          result.textContent =
-            `Incoming ${prev.amount} → absorbed ${prev.absorbed.segments}+${prev.absorbed.exo} ` +
-            `(segments+exo) → residual ${prev.residual} → HP -${prev.hpLoss} ` +
-            `[t1=${prev.thresholds.t1}, t2=${prev.thresholds.t2}]`;
-        }
-      }
+      const prev = await App.Logic.combat.previewHit(window.sb, chId, n);
+      // Generic preview: HP loss + exactly one strip (no slot/type reveal)
+      if (result)
+        result.textContent = `Hit ${prev.amount} → HP -${prev.hpLoss} · 1 strip`;
+      return;
     }
 
+    // --- APPLY: writes HP (thresholds) + one strip on a valid exo slot ---
     if (dmgApply) {
-      // Apply (writes)
       const ch = AppState?.character;
-      if (App?.Logic?.combat?.applyHit && ch?.id) {
-        const out = await App.Logic.combat.applyHit(window.sb, ch, n);
+      const out = await App.Logic.combat.applyHit(window.sb, ch, n);
 
-        // repaint UI
-        if (typeof renderHP === 'function') renderHP(ch);
-        await App.Features.equipment.computeAndRenderArmor(ch.id);
-        await App.Features.equipment.load(ch.id);
+      // repaint UI
+      if (typeof renderHP === 'function') renderHP(ch);
+      await App.Features.equipment.computeAndRenderArmor(ch.id);
+      await App.Features.equipment.load(ch.id);
 
-        setText?.('msg', out.summary);
-      }
+      // Generic toast (no slot/type reveal)
+      setText?.('msg', `Took -${out.hpLoss} HP · 1 strip`);
       back?.classList.remove('show');
+      return;
     }
-    return;
   }
 });
 
