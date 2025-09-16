@@ -32,10 +32,8 @@ function renderHP(ch) {
   const elCur = document.getElementById('hpCurrent');
   const elTot = document.getElementById('hpTotal');
   const elBar = document.getElementById('hpBar');
-  if (!elCur || !elTot || !elBar) {
-    console.warn('[HP] missing DOM');
-    return;
-  }
+  if (!elCur || !elTot || !elBar) return;
+
   const total = Number(ch?.hp_total ?? 0);
   const current = Math.max(0, Math.min(total, Number(ch?.hp_current ?? 0)));
   elCur.textContent = String(current);
@@ -43,12 +41,12 @@ function renderHP(ch) {
   elBar.style.width =
     (total > 0 ? (current / total) * 100 : 0).toFixed(2) + '%';
 
-  const tMinor = Number(ch?.dmg_minor ?? Math.round(total * 0.25));
-  const tMajor = Number(ch?.dmg_major ?? Math.round(total * 0.5));
-  const tSevere = Number(ch?.dmg_severe ?? Math.round(total * 0.75));
-  setText?.('thMinor', tMinor);
-  setText?.('thMajor', tMajor);
-  setText?.('thSevere', tSevere);
+  // two-number thresholds (fallbacks to old minor/major)
+  const t1 = Number(ch?.dmg_t1 ?? ch?.dmg_minor ?? 7);
+  const t2 = Number(ch?.dmg_t2 ?? ch?.dmg_major ?? 14);
+  setText?.('thMinor', t1); // reuse existing labels if your HTML expects them
+  setText?.('thMajor', t2);
+  setText?.('thSevere', ''); // no longer used
 }
 
 function renderHope(ch) {
@@ -522,7 +520,7 @@ function wireHpAndHope() {
 }
 
 // Delegated click handlers
-document.addEventListener('click', (e) => {
+document.addEventListener('click', async (e) => {
   if (!(e.target instanceof Element)) return;
 
   // Add item (by name box)
@@ -541,7 +539,7 @@ document.addEventListener('click', (e) => {
     return;
   }
 
-  // Damage Calculator modal (basic)
+  // =========== Damage Calculator modal ===========
   const dmgOpen = e.target.closest('#btnDamageCalc');
   const dmgClose = e.target.closest('#btnCloseModal');
   const dmgApply = e.target.closest('#btnApplyDamage');
@@ -553,18 +551,41 @@ document.addEventListener('click', (e) => {
     if (dmgOpen) back?.classList.add('show');
     if (dmgClose) back?.classList.remove('show');
 
+    // Helpers
+    const input = document.getElementById('calcDamage');
+    const result = document.getElementById('calcResult');
+    const n = Math.max(0, Number(input?.value || 0));
+
     if (dmgCalc) {
-      const input = document.getElementById('calcDamage');
-      const result = document.getElementById('calcResult');
-      const n = Math.max(0, Number(input?.value || 0));
-      if (result) result.textContent = `Calculated: ${n}`;
+      // Preview (no writes)
+      const chId = AppState?.character?.id;
+      if (App?.Logic?.combat?.previewHit && chId) {
+        const prev = await App.Logic.combat.previewHit(window.sb, chId, n);
+        if (result) {
+          result.textContent =
+            `Incoming ${prev.amount} → absorbed ${prev.absorbed.segments}+${prev.absorbed.exo} ` +
+            `(segments+exo) → residual ${prev.residual} → HP -${prev.hpLoss} ` +
+            `[t1=${prev.thresholds.t1}, t2=${prev.thresholds.t2}]`;
+        }
+      }
     }
+
     if (dmgApply) {
-      const input = document.getElementById('calcDamage');
-      const n = Math.max(0, Number(input?.value || 0));
-      if (n) adjustHP(-n);
+      // Apply (writes)
+      const ch = AppState?.character;
+      if (App?.Logic?.combat?.applyHit && ch?.id) {
+        const out = await App.Logic.combat.applyHit(window.sb, ch, n);
+
+        // repaint UI
+        if (typeof renderHP === 'function') renderHP(ch);
+        await App.Features.equipment.computeAndRenderArmor(ch.id);
+        await App.Features.equipment.load(ch.id);
+
+        setText?.('msg', out.summary);
+      }
       back?.classList.remove('show');
     }
+    return;
   }
 });
 
