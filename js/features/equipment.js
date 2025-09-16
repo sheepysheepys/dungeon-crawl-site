@@ -170,7 +170,7 @@
       const rows = await queryEquipment(characterId);
       updateArmorTopline(rows);
       renderEquipmentList(rows);
-      App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows); // <-- add
+      App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
       return rows;
     }
   }
