@@ -11,7 +11,7 @@
     const { data, error } = await client
       .from('character_equipment')
       .select(
-        'id, slot, item_id, slots_remaining, exo_left, rarity, item:items(id, name, slot, armor_value, damage)'
+        'id, slot, item_id, slots_remaining, exo_left, item:items(id, name, slot, armor_value, damage)'
       )
       .eq('character_id', characterId);
     if (error) console.warn('[equipment] query error', error);
