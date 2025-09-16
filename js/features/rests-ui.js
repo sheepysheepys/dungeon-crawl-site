@@ -4,15 +4,14 @@
   const getCh = () => window.AppState?.character;
   let _restMode = null;
 
-  // ---- Public wire-up (call once on app init) ----
+  // ========== Public bootstrap ==========
   function wireRestUI() {
     document.addEventListener('click', onRestClick, true);
   }
 
-  // ---- Event delegation for modal buttons ----
+  // ========== Event delegation ==========
   async function onRestClick(e) {
     const t = e.target;
-
     const shortRest = t.closest?.('#btnShortRest');
     const longRest = t.closest?.('#btnLongRest');
     const closeBtn = t.closest?.('#btnCloseRestModal');
@@ -36,7 +35,7 @@
     }
   }
 
-  // ---- Modal open/close ----
+  // ========== Modal open/close ==========
   function openRestModal(mode) {
     _restMode = mode;
     const title = document.getElementById('restModalTitle');
@@ -50,26 +49,25 @@
     _restMode = null;
   }
 
-  // ---- Render options + choose-limit (max 2) ----
+  // ========== Render options ==========
   async function renderRestOptions(mode) {
     const root = document.getElementById('restOptions');
     const confirmBtn = document.getElementById('btnConfirmRest');
     if (!root) return;
 
-    // Build UI
     if (mode === 'short') {
       root.innerHTML = `
         <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
         <label class="row"><input id="srHP"    type="checkbox"/><span>Regain <strong>1d4 HP</strong></span></label>
-        <label class="row"><input id="srArmor" type="checkbox"/><span>Repair <strong>1d4 armor slots</strong> (+1 each, random damaged slots)</span></label>
+        <label class="row"><input id="srArmor" type="checkbox"/><span>Repair <strong>1d4 armor slots</strong></span></label>
         <label class="row"><input id="srHope"  type="checkbox"/><span>Gain <strong>+1 Hope</strong> (to max 5)</span></label>
-        <label class="row"><input id="srExo"   type="checkbox"/><span>Restore <strong>Exoskin on one slot</strong> (random damaged exo)</span></label>
+        <label class="row"><input id="srExo"   type="checkbox"/><span>Restore <strong>Exoskin on one slot</strong></span></label>
       `;
     } else {
       root.innerHTML = `
         <div class="mono muted rest-msg" style="margin-bottom:6px"></div>
         <label class="row"><input id="lrFullHeal"  type="checkbox"/><span><strong>Tend to all wounds</strong> (HP → max)</span></label>
-        <label class="row"><input id="lrRepairAll" type="checkbox"/><span><strong>Repair all equipped armor</strong> (does not recreate destroyed armor)</span></label>
+        <label class="row"><input id="lrRepairAll" type="checkbox"/><span><strong>Repair all equipped armor</strong></span></label>
         <label class="row"><input id="lrHope2"     type="checkbox"/><span><strong>Gain +2 Hope</strong> (to max 5)</span></label>
         <label class="row" style="align-items:flex-start">
           <input id="lrProject" type="checkbox"/>
@@ -84,21 +82,19 @@
       `;
     }
 
-    // limit to 2 choices and enable confirm only when ≥1 selected
     setupChooseLimit(root, 2, confirmBtn);
   }
 
-  // ---- Enforce "pick up to N" & enable confirm ----
+  // ========== Choose limit helper ==========
   function setupChooseLimit(container, maxChoices, confirmBtn) {
     const checks = Array.from(
       container.querySelectorAll('input[type="checkbox"]')
     );
     const msg = container.querySelector('.rest-msg');
-    const refresh = () => {
-      const selected = checks.filter((c) => c.checked);
-      if (selected.length > maxChoices) {
-        // uncheck the one that was just toggled on
-        const last = selected[selected.length - 1];
+    function refresh() {
+      const chosen = checks.filter((c) => c.checked);
+      if (chosen.length > maxChoices) {
+        const last = chosen[chosen.length - 1];
         last.checked = false;
       }
       const count = checks.filter((c) => c.checked).length;
@@ -106,17 +102,18 @@
         confirmBtn.disabled = count === 0;
         confirmBtn.classList.toggle('disabled', count === 0);
       }
-      if (msg)
+      if (msg) {
         msg.textContent =
           count === 0
             ? `Choose up to ${maxChoices}.`
             : `Selected ${count}/${maxChoices}.`;
-    };
+      }
+    }
     checks.forEach((c) => c.addEventListener('change', refresh));
     refresh();
   }
 
-  // ---- Apply SHORT rest (calls your logic; then repaint UI) ----
+  // ========== Apply Short Rest ==========
   async function applyShortRestOptions() {
     const client = sb();
     const ch = getCh();
@@ -129,18 +126,15 @@
       exoOne: document.getElementById('srExo')?.checked,
     });
 
-    // repaint HP/Hope
     setText?.('hpCurrent', ch.hp_current);
     setText?.('hopeDots', fmtDots?.(ch.hope_points) ?? '');
-
-    // armor/exo UI
     await App.Features.equipment.computeAndRenderArmor(ch.id);
     await App.Features.equipment.load(ch.id);
 
     setText?.('msg', `Short rest: ${results.join(' · ')}`);
   }
 
-  // ---- Apply LONG rest (calls your logic; then repaint UI) ----
+  // ========== Apply Long Rest ==========
   async function applyLongRestOptions() {
     const client = sb();
     const ch = getCh();
@@ -155,18 +149,15 @@
         : '',
     });
 
-    // repaint HP/Hope
     setText?.('hpCurrent', ch.hp_current);
     setText?.('hopeDots', fmtDots?.(ch.hope_points) ?? '');
-
-    // armor/exo UI
     await App.Features.equipment.computeAndRenderArmor(ch.id);
     await App.Features.equipment.load(ch.id);
 
     setText?.('msg', `Long rest: ${results.join(' · ')}`);
   }
 
-  // expose
+  // ========== Expose ==========
   App.Features = App.Features || {};
   App.Features.restsUI = { wireRestUI };
 })(window.App || (window.App = {}));
