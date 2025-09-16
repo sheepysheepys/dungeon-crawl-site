@@ -39,12 +39,7 @@
     if (track) {
       const ticks = Array.from(track.querySelectorAll('.tick')).slice(0, 5);
       ticks.forEach((el, i) => {
-        const on = i < exoOn;
-        el.classList.toggle('on', on);
-        // inline style to avoid specificity fights
-        el.style.background = on ? 'var(--good)' : 'var(--line2)';
-        el.style.height = '8px';
-        el.style.borderRadius = '4px';
+        el.classList.toggle('filled', i < exoOn);
       });
     }
 
