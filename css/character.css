@@ -449,6 +449,44 @@ textarea {
   justify-content: flex-end;
 }
 
+/* Wider, scroll-safe modal */
+.modal.modal-lg {
+  width: min(720px, calc(100% - 24px));
+  max-height: calc(100vh - 80px);
+  overflow: auto;
+}
+
+/* Radio choice cards */
+.lu-choices {
+  display: grid;
+  gap: 10px;
+}
+
+.choice-card {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
+  cursor: pointer;
+}
+
+.choice-card input[type='radio'] {
+  margin-top: 4px;
+  transform: scale(1.1);
+}
+
+.choice-content .choice-title {
+  font-weight: 700;
+}
+
+.choice-content .choice-desc {
+  font-size: 12px;
+}
+
 /* ===== LISTS ===== */
 .list {
   display: grid;

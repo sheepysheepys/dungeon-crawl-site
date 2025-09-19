@@ -815,11 +815,27 @@ function wireLevelUp() {
   const back = document.getElementById('levelModalBack');
   const closeBtn = document.getElementById('btnCloseLevelModal');
   const confirmBtn = document.getElementById('btnConfirmLevelUp');
+  const choiceHp = document.getElementById('luChoiceHp');
+  const choiceStat = document.getElementById('luChoiceStat');
   const abilitySel = document.getElementById('luAbilityKey');
 
   if (!openBtn || !back) return;
 
-  // Open: populate ability dropdown from character_stats
+  function updateUIForChoice() {
+    const statSelected = choiceStat?.checked;
+    if (abilitySel) abilitySel.disabled = !statSelected;
+
+    // Enable confirm if HP is chosen OR if STAT is chosen with a valid selection
+    const canConfirm =
+      choiceHp?.checked === true ||
+      (statSelected &&
+        abilitySel &&
+        abilitySel.value &&
+        abilitySel.value !== '');
+    if (confirmBtn) confirmBtn.disabled = !canConfirm;
+  }
+
+  // Populate abilities on open
   openBtn.addEventListener('click', async () => {
     back.classList.add('show');
 
@@ -828,6 +844,7 @@ function wireLevelUp() {
       const ch = window.AppState?.character;
       if (!sb || !ch?.id || !abilitySel) return;
 
+      // Load character_stats to build options
       const { data: statsRow, error } = await sb
         .from('character_stats')
         .select('*')
@@ -837,67 +854,79 @@ function wireLevelUp() {
       if (error) {
         console.warn('[levelup] stats read error', error);
         abilitySel.innerHTML = `<option value="">(no stats table)</option>`;
-        return;
-      }
-
-      // Build options from keys, skipping id/character_id and non-numeric fields
-      const keys = Object.keys(statsRow || {}).filter((k) => {
-        if (
-          k === 'id' ||
-          k === 'character_id' ||
-          k === 'created_at' ||
-          k === 'updated_at'
-        )
-          return false;
-        return Number.isFinite(Number(statsRow[k]));
-      });
-
-      if (!keys.length) {
-        abilitySel.innerHTML = `<option value="">(no numeric stats found)</option>`;
       } else {
-        abilitySel.innerHTML =
-          `<option value="">— choose a stat —</option>` +
-          keys
-            .map((k) => `<option value="${k}">${k.replace(/_/g, ' ')}</option>`)
-            .join('');
+        const keys = Object.keys(statsRow || {}).filter((k) => {
+          if (
+            k === 'id' ||
+            k === 'character_id' ||
+            k === 'created_at' ||
+            k === 'updated_at'
+          )
+            return false;
+          return Number.isFinite(Number(statsRow[k]));
+        });
+
+        abilitySel.innerHTML = keys.length
+          ? `<option value="">— choose a stat —</option>` +
+            keys
+              .map(
+                (k) => `<option value="${k}">${k.replace(/_/g, ' ')}</option>`
+              )
+              .join('')
+          : `<option value="">(no numeric stats found)</option>`;
       }
+
+      // Default to HP choice each open
+      if (choiceHp) choiceHp.checked = true;
+      if (choiceStat) choiceStat.checked = false;
+      if (abilitySel) abilitySel.disabled = true;
+      updateUIForChoice();
     } catch (e) {
       console.warn('[levelup] populate dropdown failed', e);
       if (abilitySel)
         abilitySel.innerHTML = `<option value="">(error)</option>`;
+      updateUIForChoice();
     }
   });
+
+  // Choice toggles
+  choiceHp?.addEventListener('change', updateUIForChoice);
+  choiceStat?.addEventListener('change', updateUIForChoice);
+  abilitySel?.addEventListener('change', updateUIForChoice);
 
   // Close
   closeBtn?.addEventListener('click', () => back.classList.remove('show'));
 
-  // Confirm: apply level + options
+  // Confirm action
   confirmBtn?.addEventListener('click', async () => {
     const sb = window.sb;
     const ch = window.AppState?.character;
     if (!sb || !ch?.id) return;
 
-    const incHp = !!document.getElementById('luHpPlus')?.checked;
-    const statKey = (
-      document.getElementById('luAbilityKey')?.value || ''
-    ).trim();
+    const takeHp = choiceHp?.checked === true;
+    const statKey =
+      choiceStat?.checked && abilitySel && abilitySel.value
+        ? abilitySel.value
+        : '';
 
-    // 1) Update characters table: level (+1) and optional hp_total (+1)
+    // Validate one-or-the-other
+    if (!takeHp && !statKey) {
+      setText?.('msg', 'Pick +1 Max HP or choose a stat.');
+      return;
+    }
+
+    // 1) Update characters: level +1 and optional HP +1
     const nextLevel = Number(ch.level || 1) + 1;
-    const nextHpTotal = incHp
+    const nextHpTotal = takeHp
       ? Number(ch.hp_total || 0) + 1
       : Number(ch.hp_total || 0);
 
-    let charUpdate = sb
+    const { data: charData, error: charErr } = await sb
       .from('characters')
       .update({ level: nextLevel, hp_total: nextHpTotal })
       .eq('id', ch.id)
       .select('id, level, hp_total, hp_current, dmg_t1, dmg_t2, evasion')
       .single();
-
-    const [{ data: charData, error: charErr }] = await Promise.all([
-      charUpdate,
-    ]);
 
     if (charErr) {
       console.error('[levelup] character update failed', charErr);
@@ -905,7 +934,7 @@ function wireLevelUp() {
       return;
     }
 
-    // 2) Optional: bump one ability in character_stats
+    // 2) Optional: bump one ability
     if (statKey) {
       const { data: statsRow, error: statsErr } = await sb
         .from('character_stats')
@@ -913,9 +942,8 @@ function wireLevelUp() {
         .eq('character_id', ch.id)
         .maybeSingle();
 
-      if (statsErr) {
-        console.warn('[levelup] could not read stats', statsErr);
-      } else if (
+      if (
+        !statsErr &&
         statsRow &&
         Object.prototype.hasOwnProperty.call(statsRow, statKey)
       ) {
@@ -929,30 +957,39 @@ function wireLevelUp() {
           .eq('character_id', ch.id);
 
         if (bumpErr) console.warn('[levelup] stat bump failed', bumpErr);
+      } else if (statsErr) {
+        console.warn('[levelup] stats read failed', statsErr);
       }
     }
 
-    // 3) Update local state and repaint
+    // 3) Local state & repaint
     Object.assign(ch, charData);
     setText?.('charLevelNum', String(ch.level));
     renderHP(ch);
 
-    // 4) If evasion derives from agility (or stats), recompute
+    // Recompute evasion if it depends on stats
     if (App.Logic?.evasion?.computeAndPersistEvasion) {
       try {
         await App.Logic.evasion.computeAndPersistEvasion(sb, ch.id);
-        // If your evasion logic persists to DB, fetch the fresh value or let your evasion render read from DB elsewhere
       } catch (e) {
         console.warn('[levelup] evasion recompute failed', e);
       }
     }
 
+    // Feat milestone ping (every 6 levels)
+    const featMsg =
+      ch.level % 6 === 0 ? ' — Feat unlocked (coding later)!' : '';
     setText?.(
       'msg',
-      `Leveled up to ${ch.level}!${incHp ? ' (+1 Max HP)' : ''}${
-        statKey ? ` (+1 ${statKey.replace(/_/g, ' ')})` : ''
-      }`
+      `Leveled up to ${ch.level}! ${
+        takeHp
+          ? '(+1 Max HP)'
+          : statKey
+          ? `(+1 ${statKey.replace(/_/g, ' ')})`
+          : ''
+      }${featMsg}`
     );
+
     back.classList.remove('show');
   });
 }

@@ -479,50 +479,62 @@
 
     <div class="modal-backdrop" id="levelModalBack">
       <div
-        class="modal"
+        class="modal modal-lg"
         role="dialog"
         aria-modal="true"
         aria-labelledby="levelModalTitle"
       >
         <h3 id="levelModalTitle">Level Up</h3>
 
-        <!-- Options root (populated on open) -->
-        <div id="levelOptions" style="margin-bottom: 10px">
-          <div class="row" style="justify-content: flex-start">
-            <div class="muted">Choose level-up options below.</div>
-          </div>
-
-          <label class="row">
-            <input id="luHpPlus" type="checkbox" checked />
-            <span>Increase Max HP by <strong>+1</strong></span>
-          </label>
-
-          <div class="row" style="align-items: flex-end">
-            <div>
-              <div class="muted" style="font-size: 12px; margin-bottom: 4px">
-                Raise one ability by +1
-              </div>
-              <select id="luAbilityKey" style="min-width: 200px"></select>
-            </div>
-            <div class="muted" style="font-size: 12px; margin-left: 8px">
-              (Optional — pick one)
-            </div>
-          </div>
-
-          <div class="row" style="opacity: 0.6; pointer-events: none">
-            <label>
-              <input type="checkbox" disabled /> Gain a Feat (coming soon)
-            </label>
-            <label>
-              <input type="checkbox" disabled /> Learn a New Ability (coming
-              soon)
-            </label>
-          </div>
+        <div class="muted" style="margin: 2px 0 10px">
+          Choose <strong>one</strong> option.
         </div>
 
-        <div class="row">
+        <div class="lu-choices">
+          <!-- Option A: +1 Max HP -->
+          <label class="choice-card">
+            <input
+              type="radio"
+              name="luChoice"
+              id="luChoiceHp"
+              value="hp"
+              checked
+            />
+            <div class="choice-content">
+              <div class="choice-title">+1 Max HP</div>
+              <div class="choice-desc muted">
+                Increase your maximum health by 1.
+              </div>
+            </div>
+          </label>
+
+          <!-- Option B: +1 Ability -->
+          <label class="choice-card">
+            <input
+              type="radio"
+              name="luChoice"
+              id="luChoiceStat"
+              value="stat"
+            />
+            <div class="choice-content">
+              <div class="choice-title">+1 to an Ability</div>
+              <div class="choice-desc muted">Raise one ability score by 1.</div>
+              <div class="row" style="margin-top: 8px">
+                <select
+                  id="luAbilityKey"
+                  disabled
+                  style="min-width: 240px"
+                ></select>
+              </div>
+            </div>
+          </label>
+        </div>
+
+        <div class="row" style="margin-top: 14px">
           <div class="spacer"></div>
-          <button id="btnConfirmLevelUp" class="btn-accent">Confirm</button>
+          <button id="btnConfirmLevelUp" class="btn-accent" disabled>
+            Confirm
+          </button>
           <button id="btnCloseLevelModal">Close</button>
         </div>
       </div>
