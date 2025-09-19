@@ -147,7 +147,26 @@
             </div>
 
             <div class="mono muted" style="margin-top: 6px; font-size: 12px">
-              Damage: ≤T1 → 1 HP · T1 &lt; dmg ≤ T2 → 2 HP · &gt; T2 → 3 HP
+              <!-- Damage legend -->
+              <div id="dmgLegend" class="dmg-legend">
+                <div class="band">
+                  <span class="tag tag-light">Light</span>
+                  <span class="range">0–<span id="t1Val">7</span></span>
+                  <span class="hp">−1 HP</span>
+                </div>
+                <div class="band">
+                  <span class="tag tag-heavy">Heavy</span>
+                  <span class="range"
+                    ><span id="t2Low">8</span>–<span id="t2Val">14</span></span
+                  >
+                  <span class="hp">−2 HP</span>
+                </div>
+                <div class="band">
+                  <span class="tag tag-brutal">Brutal</span>
+                  <span class="range"><span id="t3Low">15</span>+</span>
+                  <span class="hp">−3 HP</span>
+                </div>
+              </div>
             </div>
 
             <div class="row rest-row">

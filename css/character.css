@@ -947,3 +947,46 @@ textarea {
   color: var(--muted);
   font-size: 13px;
 }
+
+.dmg-legend {
+  display: grid;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+.dmg-legend .band {
+  display: grid;
+  grid-template-columns: 100px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  padding: 6px 8px;
+}
+.dmg-legend .tag {
+  display: inline-block;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-weight: 700;
+  background: var(--surface);
+}
+.tag-light {
+  border-color: #59b36a22;
+  color: #9fe7ad;
+}
+.tag-heavy {
+  border-color: #ffb70333;
+  color: #ffe3a3;
+}
+.tag-brutal {
+  border-color: #ff6b6b33;
+  color: #ffb3b3;
+}
+.dmg-legend .range {
+  color: var(--muted);
+}
+.dmg-legend .hp {
+  font-weight: 700;
+}

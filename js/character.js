@@ -62,6 +62,17 @@ function renderHP(ch) {
 
   setText?.('thT1', t1);
   setText?.('thT2', t2);
+
+  // inside renderHP, after you compute t1 and t2 and call setText('thT1', t1); setText('thT2', t2);
+  const t1El = document.getElementById('t1Val');
+  const t2LowEl = document.getElementById('t2Low');
+  const t2ValEl = document.getElementById('t2Val');
+  const t3LowEl = document.getElementById('t3Low');
+
+  if (t1El) t1El.textContent = String(t1);
+  if (t2LowEl) t2LowEl.textContent = String(t1 + 1);
+  if (t2ValEl) t2ValEl.textContent = String(t2);
+  if (t3LowEl) t3LowEl.textContent = String(t2 + 1);
 }
 
 function renderHope(ch) {
