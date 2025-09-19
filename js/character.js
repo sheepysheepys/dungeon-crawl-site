@@ -32,21 +32,36 @@ function renderHP(ch) {
   const elCur = document.getElementById('hpCurrent');
   const elTot = document.getElementById('hpTotal');
   const elBar = document.getElementById('hpBar');
-  if (!elCur || !elTot || !elBar) return;
+  if (!elCur || !elTot || !elBar) {
+    console.warn('[HP] missing DOM');
+    return;
+  }
 
   const total = Number(ch?.hp_total ?? 0);
   const current = Math.max(0, Math.min(total, Number(ch?.hp_current ?? 0)));
   elCur.textContent = String(current);
   elTot.textContent = String(total);
-  elBar.style.width =
-    (total > 0 ? (current / total) * 100 : 0).toFixed(2) + '%';
 
-  // two-number thresholds (fallbacks to old minor/major)
-  const t1 = Number(ch?.dmg_t1 ?? ch?.dmg_minor ?? 7);
-  const t2 = Number(ch?.dmg_t2 ?? ch?.dmg_major ?? 14);
-  setText?.('thMinor', t1); // reuse existing labels if your HTML expects them
-  setText?.('thMajor', t2);
-  setText?.('thSevere', ''); // no longer used
+  const pct = total > 0 ? (current / total) * 100 : 0;
+  elBar.style.width = pct.toFixed(2) + '%';
+
+  // NEW: two thresholds with backward-compat fallbacks
+  const t1 = Number.isFinite(ch?.dmg_t1)
+    ? Number(ch.dmg_t1)
+    : Number.isFinite(ch?.dmg_minor)
+    ? Number(ch.dmg_minor)
+    : 7; // sensible default
+
+  const t2Raw = Number.isFinite(ch?.dmg_t2)
+    ? Number(ch.dmg_t2)
+    : Number.isFinite(ch?.dmg_major)
+    ? Number(ch.dmg_major)
+    : 14; // sensible default
+
+  const t2 = Math.max(t1 + 1, t2Raw); // ensure T2 > T1
+
+  setText?.('thT1', t1);
+  setText?.('thT2', t2);
 }
 
 function renderHope(ch) {

@@ -629,6 +629,20 @@ textarea {
   margin-top: 10px;
 }
 
+#hpCard .thresholds.thresholds-2 {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  margin-top: 8px;
+  gap: 8px;
+}
+#hpCard .thresholds .label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-right: 6px;
+}
+
 /* Armor */
 #armorCard h3 {
   margin-bottom: 10px;

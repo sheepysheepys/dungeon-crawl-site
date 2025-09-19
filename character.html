@@ -115,8 +115,6 @@
         <div id="msg" class="muted"></div>
 
         <!-- ================== TOP GRID ================== -->
-        <!-- Row 1: HP (span 2) | Armor -->
-        <!-- Row 2: Evasion | Hope | Experience -->
         <div class="top-grid">
           <!-- HP -->
           <section class="box" id="hpCard">
@@ -137,19 +135,19 @@
 
             <div class="hp-track"><div class="hp-bar" id="hpBar"></div></div>
 
-            <div class="grid thresholds">
+            <div class="thresholds thresholds-2">
               <div>
-                <div class="muted">Minor</div>
-                <div class="mono" id="thMinor">—</div>
+                <span class="label">T1</span>
+                <span id="thT1" class="mono chip">7</span>
               </div>
               <div>
-                <div class="muted">Major</div>
-                <div class="mono" id="thMajor">—</div>
+                <span class="label">T2</span>
+                <span id="thT2" class="mono chip">14</span>
               </div>
-              <div>
-                <div class="muted">Severe</div>
-                <div class="mono" id="thSevere">—</div>
-              </div>
+            </div>
+
+            <div class="mono muted" style="margin-top: 6px; font-size: 12px">
+              Damage: ≤T1 → 1 HP · T1 &lt; dmg ≤ T2 → 2 HP · &gt; T2 → 3 HP
             </div>
 
             <div class="row rest-row">
