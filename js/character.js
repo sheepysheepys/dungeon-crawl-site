@@ -914,15 +914,23 @@ function wireLevelUp() {
     }
 
     // Baseline +1 HP always; +1 more if HP bonus chosen
+    // Baseline +1 HP always; +1 more if HP bonus chosen
     const hpGain = 1 + (takeExtraHp ? 1 : 0);
     const nextLevel = Number(ch.level || 1) + 1;
 
-    // 1) Update character: level and hp_total
+    // 🔧 New: compute both totals
+    const prevHpCur = Number(ch.hp_current ?? 0);
+    const prevHpTot = Number(ch.hp_total ?? 0);
+    const nextHpTotal = prevHpTot + hpGain;
+    const nextHpCurrent = Math.min(nextHpTotal, prevHpCur + hpGain);
+
+    // 1) Update character: level + HP (current and max)
     const { data: charData, error: charErr } = await sb
       .from('characters')
       .update({
         level: nextLevel,
-        hp_total: Number(ch.hp_total || 0) + hpGain,
+        hp_total: nextHpTotal,
+        hp_current: nextHpCurrent,
       })
       .eq('id', ch.id)
       .select('id, level, hp_total, hp_current, dmg_t1, dmg_t2, evasion')
