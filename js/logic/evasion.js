@@ -60,3 +60,51 @@
   App.Logic = App.Logic || {};
   App.Logic.evasion = { computeAndPersistEvasion, agilityMod };
 })(window.App || (window.App = {}));
+
+// /js/logic/evasion.js (or wherever)
+(function (App) {
+  async function computeAndPersistEvasion(sb, characterId) {
+    // 1) Stats (tolerant)
+    const { data: stats, error: sErr } = await sb
+      .from('character_stats')
+      .select('*')
+      .eq('character_id', characterId)
+      .maybeSingle();
+    if (sErr) {
+      console.warn('[evasion] stats error', sErr);
+    }
+
+    const agility = Number(stats?.agility ?? 0); // falls back to 0 if not present
+    const agiMod = Math.floor((agility - 10) / 2);
+
+    // 2) Equipment evasion bonuses (tolerant join)
+    const { data: equip, error: eErr } = await sb
+      .from('character_equipment')
+      .select('slot, item:items(evasion_bonus)') // requires FK; otherwise split into two queries
+      .eq('character_id', characterId);
+    if (eErr) {
+      console.warn('[evasion] equip error', eErr);
+    }
+
+    const itemBonus = (equip || []).reduce((sum, row) => {
+      const b = Number(row?.item?.evasion_bonus ?? 0);
+      return sum + (Number.isFinite(b) ? b : 0);
+    }, 0);
+
+    const base = 10; // your chosen human baseline
+    const evasion = Math.max(0, base + agiMod + itemBonus);
+
+    // 3) Persist
+    const { error: uErr } = await sb
+      .from('characters')
+      .update({ evasion })
+      .eq('id', characterId);
+    if (uErr) console.warn('[evasion] persist failed', uErr);
+
+    return evasion;
+  }
+
+  App.Logic = App.Logic || {};
+  App.Logic.evasion = App.Logic.evasion || {};
+  App.Logic.evasion.computeAndPersistEvasion = computeAndPersistEvasion;
+})(window.App || (window.App = {}));
