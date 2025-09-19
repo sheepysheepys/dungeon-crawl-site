@@ -971,6 +971,10 @@ function wireLevelUp() {
         console.warn('[levelup] evasion recompute failed', e);
       }
     }
+    await App.Logic.evasion.refreshStatsAndEvasion(
+      window.sb,
+      window.AppState.character.id
+    );
 
     // Feat milestone ping
     const featMsg = ch.level % 6 === 0 ? ' — Feat unlocked (coming soon)!' : '';
