@@ -466,11 +466,41 @@
         aria-labelledby="levelModalTitle"
       >
         <h3 id="levelModalTitle">Level Up</h3>
-        <div class="row" style="justify-content: flex-start">
-          <div class="muted">
-            Choose HP increase, abilities, feats (coming soon).
+
+        <!-- Options root (populated on open) -->
+        <div id="levelOptions" style="margin-bottom: 10px">
+          <div class="row" style="justify-content: flex-start">
+            <div class="muted">Choose level-up options below.</div>
+          </div>
+
+          <label class="row">
+            <input id="luHpPlus" type="checkbox" checked />
+            <span>Increase Max HP by <strong>+1</strong></span>
+          </label>
+
+          <div class="row" style="align-items: flex-end">
+            <div>
+              <div class="muted" style="font-size: 12px; margin-bottom: 4px">
+                Raise one ability by +1
+              </div>
+              <select id="luAbilityKey" style="min-width: 200px"></select>
+            </div>
+            <div class="muted" style="font-size: 12px; margin-left: 8px">
+              (Optional — pick one)
+            </div>
+          </div>
+
+          <div class="row" style="opacity: 0.6; pointer-events: none">
+            <label>
+              <input type="checkbox" disabled /> Gain a Feat (coming soon)
+            </label>
+            <label>
+              <input type="checkbox" disabled /> Learn a New Ability (coming
+              soon)
+            </label>
           </div>
         </div>
+
         <div class="row">
           <div class="spacer"></div>
           <button id="btnConfirmLevelUp" class="btn-accent">Confirm</button>
