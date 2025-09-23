@@ -277,23 +277,24 @@
               <h3>Armor Overview</h3>
 
               <div class="silhouette-wrap">
-                <!-- Simple, responsive inline SVG -->
                 <svg
                   class="silhouette"
                   viewBox="0 0 120 220"
                   role="img"
                   aria-label="Armor silhouette"
                 >
-                  <!-- Underlay (exo baseline hint) -->
+                  <!-- Underlay: reference shapes only (not painted) -->
                   <g class="base">
                     <circle cx="60" cy="22" r="14" />
                     <rect x="38" y="40" width="44" height="46" rx="8" />
                     <rect x="48" y="86" width="24" height="40" rx="6" />
                     <rect x="48" y="128" width="24" height="52" rx="6" />
+                    <rect x="50" y="188" width="20" height="8" rx="4" />
                   </g>
 
-                  <!-- Overlays (toggle .active via JS) -->
+                  <!-- Overlays: EXACTLY 5 paintable regions -->
                   <g class="overlay">
+                    <!-- HEAD -->
                     <circle
                       class="slot-region"
                       data-slot="head"
@@ -301,6 +302,8 @@
                       cy="22"
                       r="14"
                     />
+
+                    <!-- CHEST -->
                     <rect
                       class="slot-region"
                       data-slot="chest"
@@ -310,6 +313,8 @@
                       height="46"
                       rx="8"
                     />
+
+                    <!-- HANDS (shoulder/arms bar) -->
                     <rect
                       class="slot-region"
                       data-slot="hands"
@@ -319,6 +324,8 @@
                       height="14"
                       rx="6"
                     />
+
+                    <!-- LEGS -->
                     <rect
                       class="slot-region"
                       data-slot="legs"
@@ -329,12 +336,15 @@
                       rx="6"
                     />
 
-                    <circle
+                    <!-- FEET (shorter) -->
+                    <rect
                       class="slot-region"
                       data-slot="feet"
-                      cx="86"
-                      cy="112"
-                      r="6"
+                      x="50"
+                      y="188"
+                      width="20"
+                      height="8"
+                      rx="4"
                     />
                   </g>
                 </svg>
