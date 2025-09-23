@@ -221,4 +221,14 @@
       return { colors: { ...colorState } };
     },
   };
+
+  // Debug helper
+  window.__silAudit = function () {
+    const results = {};
+    for (const slot of SIL_SLOTS) {
+      results[slot] = partsFor(slot).length;
+    }
+    console.table(results);
+    return results;
+  };
 })();
