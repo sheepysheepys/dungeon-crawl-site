@@ -893,7 +893,6 @@ function wireLevelUp() {
   choiceStat?.addEventListener('change', updateUIForChoice);
   abilitySel?.addEventListener('change', updateUIForChoice);
 
-  // Close
   closeBtn?.addEventListener('click', () => back.classList.remove('show'));
 
   // Confirm: baseline +1 Max HP; bonus = extra +1 HP OR +1 stat
@@ -913,7 +912,6 @@ function wireLevelUp() {
       return;
     }
 
-    // Baseline +1 HP always; +1 more if HP bonus chosen
     // Baseline +1 HP always; +1 more if HP bonus chosen
     const hpGain = 1 + (takeExtraHp ? 1 : 0);
     const nextLevel = Number(ch.level || 1) + 1;
