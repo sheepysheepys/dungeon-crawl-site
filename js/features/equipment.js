@@ -224,6 +224,8 @@
   async function computeAndRenderArmor(characterId) {
     const rows = await queryEquipment(characterId);
     updateArmorTopline(rows); // updates Exoskin on / Stripped pieces + ticks
+
+    window.App?.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
     return rows;
   }
 
@@ -231,6 +233,7 @@
     const rows = await queryEquipment(characterId);
     updateArmorTopline(rows);
     renderEquipmentList(rows);
+    window.App?.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
     return rows;
   }
 

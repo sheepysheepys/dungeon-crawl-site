@@ -2,7 +2,7 @@
 (function () {
   window.App = window.App || { Features: {}, Logic: {} };
 
-  const SIL_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+  const SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
@@ -10,88 +10,8 @@
     el
       ? parseInt(String(el.textContent || '').replace(/[^\d-]/g, ''), 10) || 0
       : 0;
-  const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
-  // Be liberal with selectors — include common alternates and loose fallbacks
-  const SLOT_SELECTORS = {
-    head: [
-      '[data-slot="head"]',
-      '.slot-region[data-slot="head"]',
-      '[id*="head"]',
-      '[data-slot*="head"]',
-    ].map((s) => `.silhouette .overlay ${s}`),
-
-    chest: [
-      '[data-slot="chest"]',
-      '[data-slot="torso"]',
-      '[data-slot="body"]',
-      '.slot-region[data-slot="chest"]',
-      '.slot-region[data-slot="torso"]',
-      '[id*="chest"]',
-      '[id*="torso"]',
-      '[id*="body"]',
-      '[data-slot*="chest"]',
-      '[data-slot*="torso"]',
-    ].map((s) => `.silhouette .overlay ${s}`),
-
-    legs: [
-      '[data-slot="legs"]',
-      '[data-slot="leg"]',
-      '[data-slot="legL"]',
-      '[data-slot="legR"]',
-      '[data-slot="thighs"]',
-      '[data-slot="thighL"]',
-      '[data-slot="thighR"]',
-      '[data-slot="calfL"]',
-      '[data-slot="calfR"]',
-      '.slot-region[data-slot="legs"]',
-      '.slot-region[data-slot="leg"]',
-      '.slot-region[data-slot="legL"]',
-      '.slot-region[data-slot="legR"]',
-      '[id*="leg"]',
-      '[id*="legs"]',
-      '[id*="thigh"]',
-      '[id*="calf"]',
-      '[data-slot*="leg"]',
-      '[data-slot*="thigh"]',
-    ].map((s) => `.silhouette .overlay ${s}`),
-
-    hands: [
-      '[data-slot="hands"]',
-      '[data-slot="arms"]',
-      '[data-slot="armL"]',
-      '[data-slot="armR"]',
-      '[data-slot="handL"]',
-      '[data-slot="handR"]',
-      '[data-slot="forearms"]',
-      '.slot-region[data-slot="hands"]',
-      '.slot-region[data-slot="arms"]',
-      '.slot-region[data-slot="handL"]',
-      '.slot-region[data-slot="handR"]',
-      '[id*="arm"]',
-      '[id*="hand"]',
-      '[id*="forearm"]',
-      '[data-slot*="arm"]',
-      '[data-slot*="hand"]',
-    ].map((s) => `.silhouette .overlay ${s}`),
-
-    feet: [
-      '[data-slot="feet"]',
-      '[data-slot="footL"]',
-      '[data-slot="footR"]',
-      '[data-slot="boots"]',
-      '[data-slot="shoes"]',
-      '.slot-region[data-slot="feet"]',
-      '.slot-region[data-slot="footL"]',
-      '.slot-region[data-slot="footR"]',
-      '[id*="foot"]',
-      '[id*="feet"]',
-      '[id*="boot"]',
-      '[id*="shoe"]',
-      '[data-slot*="foot"]',
-    ].map((s) => `.silhouette .overlay ${s}`),
-  };
-
+  // Map equip slots 1:1 to silhouette slots
   const EQUIP_TO_SIL = {
     head: 'head',
     chest: 'chest',
@@ -99,57 +19,54 @@
     hands: 'hands',
     feet: 'feet',
   };
-  const colorState = Object.fromEntries(SIL_SLOTS.map((k) => [k, 'none']));
 
-  function partsFor(slot) {
-    const sels = SLOT_SELECTORS[slot] || [];
-    const nodes = [];
-    sels.forEach((sel) => nodes.push(...$$(sel)));
-    // unique
-    return Array.from(new Set(nodes));
+  // Current visual state per slot
+  const colorState = Object.fromEntries(SLOTS.map((k) => [k, 'none'])); // 'armor' | 'exo' | 'none'
+
+  function nodesFor(slot) {
+    // The ONLY selector we rely on. Keep it simple.
+    return $$('.silhouette .overlay .slot-region[data-slot="' + slot + '"]');
   }
 
-  function setPartState(el, state, title) {
-    if (!el) return;
+  function setStateOnNode(el, state, title) {
     el.classList.remove('state-armor', 'state-exo', 'state-none');
-    el.classList.add(`state-${state}`);
+    el.classList.add('state-' + state);
     el.setAttribute('data-state', state);
     if (title) el.setAttribute('title', title);
   }
 
   function paintColors() {
-    SIL_SLOTS.forEach((slot) => {
-      const nodes = partsFor(slot);
+    for (const slot of SLOTS) {
+      const nodes = nodesFor(slot);
+      const st = colorState[slot] || 'none';
+      const title = `${slot.toUpperCase()}: ${st}`;
+      nodes.forEach((n) => setStateOnNode(n, st, title));
+
+      // Debug if SVG is missing a region
       if (nodes.length === 0) {
-        console.warn(
-          `[silhouette] No nodes matched for slot "${slot}". Check data-slot/id in your SVG.`
-        );
+        console.warn(`[silhouette] No SVG nodes with data-slot="${slot}"`);
       }
-      const state = colorState[slot] || 'none';
-      const title = `${slot.toUpperCase()}: ${state}`;
-      nodes.forEach((n) => setPartState(n, state, title));
-    });
+    }
   }
 
   function paintTotals() {
-    const exo = clamp(num($('#exoOn')), 0, 5);
-    const armorCount = SIL_SLOTS.reduce(
-      (c, k) => c + (colorState[k] === 'armor' ? 1 : 0),
+    const exoLeft = num($('#exoOn'));
+    const armorCount = SLOTS.reduce(
+      (n, k) => n + (colorState[k] === 'armor' ? 1 : 0),
       0
     );
-    const protection = exo + armorCount;
+    const total = exoLeft + armorCount;
 
     const exoEl = $('#silExoLeft');
-    if (exoEl) exoEl.textContent = String(exo);
+    if (exoEl) exoEl.textContent = String(exoLeft);
+    const armEl = $('#silArmorCount');
+    if (armEl) armEl.textContent = String(armorCount);
+    const totEl = $('#silProtectionTotal');
+    if (totEl) totEl.textContent = String(total);
 
-    const armorEl = $('#silArmorCount');
-    if (armorEl) armorEl.textContent = String(armorCount);
-
-    const protEl = $('#silProtectionTotal');
-    if (protEl) protEl.textContent = String(protection);
-
-    const pips = $$('.totals .pips .pip');
-    pips.forEach((p, i) => p.classList.toggle('filled', i < exo));
+    $$('.totals .pips .pip').forEach((p, i) =>
+      p.classList.toggle('filled', i < exoLeft)
+    );
   }
 
   function updateAll() {
@@ -157,78 +74,66 @@
     paintTotals();
   }
 
-  // rows: [{ slot, slots_remaining, exo_left }]
+  // Public: drive from equipment rows (truth from DB)
+  // rows: [{ slot, slots_remaining, exo_left }, ...]
   function updateFromEquipmentRows(rows) {
-    SIL_SLOTS.forEach((k) => {
-      colorState[k] = 'none';
-    });
+    // reset
+    SLOTS.forEach((k) => (colorState[k] = 'none'));
 
-    const bySil = {};
+    // aggregate by slot
+    const by = {};
     (rows || []).forEach((r) => {
       const sil = EQUIP_TO_SIL[r.slot];
       if (!sil) return;
       const seg = Math.max(0, Number(r?.slots_remaining || 0));
       const exo = Number(r?.exo_left || 0) > 0 ? 1 : 0;
-      const cur = bySil[sil] || { seg: 0, exo: 0 };
-      bySil[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
+      const cur = by[sil] || { seg: 0, exo: 0 };
+      by[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
     });
 
-    SIL_SLOTS.forEach((sil) => {
-      const agg = bySil[sil] || { seg: 0, exo: 0 };
-      colorState[sil] = agg.seg > 0 ? 'armor' : agg.exo > 0 ? 'exo' : 'none';
+    // decide: armor > exo > none
+    SLOTS.forEach((sil) => {
+      const a = by[sil] || { seg: 0, exo: 0 };
+      colorState[sil] = a.seg > 0 ? 'armor' : a.exo > 0 ? 'exo' : 'none';
     });
 
     updateAll();
   }
 
-  // Simple console audit to debug selector coverage
-  function __silAudit() {
-    const res = {};
-    SIL_SLOTS.forEach((slot) => {
-      const nodes = partsFor(slot);
-      res[slot] = nodes.map((n) => ({
-        tag: n.tagName,
-        id: n.id || null,
-        ds: n.getAttribute('data-slot') || null,
-        classes: n.className?.baseVal || n.className || null,
-      }));
-    });
-    console.table({
-      head: res.head.length,
-      chest: res.chest.length,
-      legs: res.legs.length,
-      hands: res.hands.length,
-      feet: res.feet.length,
-    });
-    return res;
-  }
-  window.__silAudit = __silAudit;
+  // tiny console helper
+  window.__silAudit = function (detail = false) {
+    const out = {};
+    for (const s of SLOTS) {
+      const nodes = nodesFor(s);
+      out[s] = detail
+        ? nodes.map((n) => ({
+            id: n.id || null,
+            ds: n.getAttribute('data-slot'),
+            cls: n.className?.baseVal || n.className || null,
+          }))
+        : nodes.length;
+    }
+    console.table(
+      SLOTS.reduce(
+        (m, s) => ((m[s] = Array.isArray(out[s]) ? out[s].length : out[s]), m),
+        {}
+      )
+    );
+    return out;
+  };
 
   function init() {
     updateAll();
-    // keep totals in sync if exo/stripped text changes
-    const cfg = { characterData: true, childList: true, subtree: true };
     const exoNode = $('#exoOn');
-    if (exoNode) new MutationObserver(paintTotals).observe(exoNode, cfg);
+    if (exoNode)
+      new MutationObserver(paintTotals).observe(exoNode, {
+        characterData: true,
+        childList: true,
+        subtree: true,
+      });
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  window.App.Features.EquipmentSilhouette = {
-    init,
-    updateFromEquipmentRows,
-    getState() {
-      return { colors: { ...colorState } };
-    },
-  };
-
-  // Debug helper
-  window.__silAudit = function () {
-    const results = {};
-    for (const slot of SIL_SLOTS) {
-      results[slot] = partsFor(slot).length;
-    }
-    console.table(results);
-    return results;
-  };
+  window.App.Features.EquipmentSilhouette = { updateFromEquipmentRows, init };
 })();
