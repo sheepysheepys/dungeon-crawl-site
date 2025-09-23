@@ -916,10 +916,11 @@ function wireLevelUp() {
     const hpGain = 1 + (takeExtraHp ? 1 : 0);
     const nextLevel = Number(ch.level || 1) + 1;
 
-    // 🔧 New: compute both totals
-    const prevHpCur = Number(ch.hp_current ?? 0);
-    const prevHpTot = Number(ch.hp_total ?? 0);
+    // 🔧 Compute BOTH totals
+    const prevHpCur = Math.max(0, Number(ch.hp_current ?? 0));
+    const prevHpTot = Math.max(0, Number(ch.hp_total ?? 0));
     const nextHpTotal = prevHpTot + hpGain;
+    // bump current by the same amount, but don't exceed new max
     const nextHpCurrent = Math.min(nextHpTotal, prevHpCur + hpGain);
 
     // 1) Update character: level + HP (current and max)
@@ -928,7 +929,7 @@ function wireLevelUp() {
       .update({
         level: nextLevel,
         hp_total: nextHpTotal,
-        hp_current: nextHpCurrent,
+        hp_current: nextHpCurrent, // ← make sure this column exists as 'hp_current'
       })
       .eq('id', ch.id)
       .select('id, level, hp_total, hp_current, dmg_t1, dmg_t2, evasion')
@@ -944,7 +945,7 @@ function wireLevelUp() {
     if (statKey) {
       const { data: statsRow, error: statsErr } = await sb
         .from('character_stats')
-        .select('*') // tolerant
+        .select('*')
         .eq('character_id', ch.id)
         .maybeSingle();
 
@@ -968,12 +969,19 @@ function wireLevelUp() {
       }
     }
 
-    // 3) Update local state & repaint core UI
+    // 3) Update local state & repaint
     Object.assign(ch, charData);
+    // (extra defensive paint in case renderHP is not called somewhere)
+    setText?.('hpCurrent', ch.hp_current);
+    setText?.('hpTotal', ch.hp_total);
     setText?.('charLevelNum', String(ch.level));
-    renderHP(ch);
+    try {
+      renderHP?.(ch);
+    } catch (e) {
+      console.warn('[renderHP] failed', e);
+    }
 
-    // 4) Refresh stats UI and recompute evasion in one go (no duplicate recompute)
+    // 4) Refresh stats UI and recompute evasion in one go
     if (App.Logic?.evasion?.refreshStatsAndEvasion) {
       await App.Logic.evasion.refreshStatsAndEvasion(sb, ch.id);
     }
@@ -982,9 +990,9 @@ function wireLevelUp() {
     const featMsg = ch.level % 6 === 0 ? ' — Feat unlocked (coming soon)!' : '';
     setText?.(
       'msg',
-      `Leveled up to ${ch.level}! (+${hpGain} Max HP)${
-        statKey ? ` (+1 ${statKey.replace(/_/g, ' ')})` : ''
-      }${featMsg}`
+      `Leveled up to ${ch.level}! (+${hpGain} Max HP, +${hpGain} Current HP)` +
+        (statKey ? ` (+1 ${statKey.replace(/_/g, ' ')})` : '') +
+        featMsg
     );
 
     back.classList.remove('show');
