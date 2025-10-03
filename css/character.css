@@ -1028,3 +1028,10 @@ textarea {
 .dmg-legend .hp {
   font-weight: 700;
 }
+
+.btn-tiny {
+  font-size: 0.8em;
+  padding: 2px 6px;
+  line-height: 1;
+  min-width: unset;
+}

@@ -43,9 +43,9 @@
         const controls = equippable
           ? `<div class="mono">x${qty}</div>
            <button class="btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
-          : `<button class="btn" data-action="dec" data-item="${r.item_id}">−</button>
-           <span class="mono" style="min-width:2ch;display:inline-block;text-align:center">${qty}</span>
-           <button class="btn" data-action="inc" data-item="${r.item_id}">+</button>`;
+          : `<button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
+   <span class="mono" style="min-width:2ch;display:inline-block;text-align:center">${qty}</span>
+   <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>`;
 
         const meta = r.item?.slot
           ? r.item.slot === 'weapon'
