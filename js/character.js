@@ -27,6 +27,17 @@ function capitalize(s) {
   return (s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
 }
 
+// Small utility: wait for a condition (e.g., sb, feature) with timeout
+async function waitFor(condFn, { tries = 40, delayMs = 125 } = {}) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      if (condFn()) return true;
+    } catch {}
+    await new Promise((r) => setTimeout(r, delayMs));
+  }
+  return false;
+}
+
 // ================= RENDERERS =================
 function renderHP(ch) {
   const elCur = document.getElementById('hpCurrent');
@@ -45,25 +56,24 @@ function renderHP(ch) {
   const pct = total > 0 ? (current / total) * 100 : 0;
   elBar.style.width = pct.toFixed(2) + '%';
 
-  // NEW: two thresholds with backward-compat fallbacks
+  // thresholds (with fallbacks)
   const t1 = Number.isFinite(ch?.dmg_t1)
     ? Number(ch.dmg_t1)
     : Number.isFinite(ch?.dmg_minor)
     ? Number(ch.dmg_minor)
-    : 7; // sensible default
+    : 7;
 
   const t2Raw = Number.isFinite(ch?.dmg_t2)
     ? Number(ch.dmg_t2)
     : Number.isFinite(ch?.dmg_major)
     ? Number(ch.dmg_major)
-    : 14; // sensible default
+    : 14;
 
   const t2 = Math.max(t1 + 1, t2Raw); // ensure T2 > T1
 
   setText?.('thT1', t1);
   setText?.('thT2', t2);
 
-  // inside renderHP, after you compute t1 and t2 and call setText('thT1', t1); setText('thT2', t2);
   const t1El = document.getElementById('t1Val');
   const t2LowEl = document.getElementById('t2Low');
   const t2ValEl = document.getElementById('t2Val');
@@ -221,14 +231,13 @@ async function fetchAwardsAndLoot(characterId) {
   // Loot boxes: be defensive about column names
   const { data: lootRaw = [], error: lootErr } = await client
     .from('loot_boxes')
-    .select('*') // grab everything to avoid 400 on unknown cols
+    .select('*')
     .eq('character_id', characterId);
 
   if (lootErr) {
     console.warn('[loot] fetch error', lootErr);
   }
 
-  // Normalize field names
   const pickDate = (row) =>
     row.created_at ||
     row.created ||
@@ -238,13 +247,11 @@ async function fetchAwardsAndLoot(characterId) {
     null;
 
   const isOpened = (row) =>
-    // prefer explicit opened_at, else status flags
     !!(row.opened_at || row.openedAt) ||
     String(row.status || '').toLowerCase() === 'opened';
 
   const tier = (row) => row.tier || row.rarity || row.box_tier || 'common';
 
-  // Map to view model and sort by created desc (client-side)
   const loot = (lootRaw || [])
     .map((lb) => ({
       id: lb.id,
@@ -299,37 +306,22 @@ function subscribeAwardsAndLoot(characterId) {
     .subscribe();
 }
 
-// Hook Experiences to character load (paste once in your main boot, e.g., character.js)
+// ================= EXPERIENCES HOOK (still keep the listener) =================
 window.addEventListener('character:ready', (ev) => {
   const ch = ev.detail || {};
   const sb = window.sb;
 
-  // Some of your objects sometimes use character_id; be permissive:
   const chId = ch.id ?? ch.character_id;
-
-  console.log('[xp] character:ready', { hasSb: !!sb, chId, ch });
+  console.log('[xp] character:ready', { hasSb: !!sb, chId });
 
   if (!document.getElementById('xpList')) {
     console.warn('[xp] #xpList missing in DOM');
     return;
   }
-  if (!sb) {
-    document.getElementById('xpList').innerHTML = `
-      <div class="xp-row xp-empty">
-        <span>Missing Supabase client</span><span></span><span class="xp-notch" aria-hidden="true"></span>
-      </div>`;
-    return;
-  }
-  if (!chId) {
-    document.getElementById('xpList').innerHTML = `
-      <div class="xp-row xp-empty">
-        <span>No character selected</span><span></span><span class="xp-notch" aria-hidden="true"></span>
-      </div>`;
-    return;
-  }
+  if (!sb || !chId) return;
 
-  // Load once
-  window.App?.Features?.experience?.loadExperiences(sb, chId);
+  // Opportunistic load; the explicit boot in init() (below) guarantees it anyway
+  window.App?.Features?.experience?.loadExperiences?.(sb, chId);
 
   // Realtime (clean old channel if any)
   window.AppState = window.AppState || {};
@@ -339,7 +331,7 @@ window.addEventListener('character:ready', (ev) => {
     } catch {}
   }
   window.AppState.xpChannel =
-    window.App?.Features?.experience?.subscribeExperiences?.(sb, chId);
+    window.App?.Features?.experience?.subscribeExperiences?.(sb, chId) || null;
 });
 
 // ================= EQUIP FLOW + ABILITIES =================
@@ -632,7 +624,7 @@ document.addEventListener('click', async (e) => {
     return;
   }
 
-  // ==== Damage Calculator modal (generic preview, no slot spoilers) ====
+  // ==== Damage Calculator modal ====
   const dmgOpen = e.target.closest('#btnDamageCalc');
   const dmgClose = e.target.closest('#btnCloseModal');
   const dmgCalc = e.target.closest('#btnCalc');
@@ -655,27 +647,22 @@ document.addEventListener('click', async (e) => {
 
     const n = Math.max(0, Number(input?.value || 0));
 
-    // --- CALCULATE: preview only (NO writes; NO strip) ---
+    // Preview only
     if (dmgCalc) {
       const chId = AppState?.character?.id;
       const prev = await App.Logic.combat.previewHit(window.sb, chId, n);
-      // Generic preview: HP loss + exactly one strip (no slot/type reveal)
       if (result)
         result.textContent = `Hit ${prev.amount} → HP -${prev.hpLoss} · 1 armor loss`;
       return;
     }
 
-    // --- APPLY: writes HP (thresholds) + one strip on a valid exo slot ---
+    // Apply
     if (dmgApply) {
       const ch = AppState?.character;
       const out = await App.Logic.combat.applyHit(window.sb, ch, n);
-
-      // repaint UI
       if (typeof renderHP === 'function') renderHP(ch);
       await App.Features.equipment.computeAndRenderArmor(ch.id);
       await App.Features.equipment.load(ch.id);
-
-      // Generic toast (no slot/type reveal)
       setText?.('msg', `Took -${out.hpLoss} HP · 1 strip`);
       back?.classList.remove('show');
       return;
@@ -728,6 +715,44 @@ document.addEventListener('click', async (e) => {
   if (initiallyActive) initiallyActive.click();
 })();
 
+// ================= INIT HELPERS (Experiences boot) =================
+async function bootExperiences(chId) {
+  const list = document.getElementById('xpList');
+  if (!list || !chId) return;
+
+  const ok = await waitFor(
+    () => !!window.sb && !!window.App?.Features?.experience?.loadExperiences
+  );
+
+  if (!ok) {
+    console.warn('[xp] Not ready after wait (sb/feature missing)');
+    list.innerHTML = `
+      <div class="xp-row xp-empty"><span>Supabase or XP feature not ready</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+      </div>`;
+    return;
+  }
+
+  const sb = window.sb;
+  // Load + subscribe (this is the guaranteed path)
+  try {
+    await window.App.Features.experience.loadExperiences(sb, chId);
+
+    // Reset previous channel if any
+    window.AppState = window.AppState || {};
+    if (window.AppState.xpChannel) {
+      try {
+        sb.removeChannel(window.AppState.xpChannel);
+      } catch {}
+    }
+    window.AppState.xpChannel =
+      window.App.Features.experience.subscribeExperiences?.(sb, chId) || null;
+  } catch (e) {
+    console.warn('[xp] boot load failed', e);
+    list.innerHTML = `
+      <div class="xp-row xp-empty"><span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span></div>`;
+  }
+}
+
 // ================= INIT =================
 window.addEventListener('character:ready', (e) => {
   const ch = e.detail;
@@ -772,7 +797,7 @@ async function init() {
   }
 
   window.AppState.user = user;
-  setCharacter(c);
+  setCharacter(c); // fires character:ready (best-effort)
 
   // stats (traits)
   try {
@@ -832,6 +857,16 @@ async function init() {
   wireLevelUp();
   wireHpAndHope();
 
+  // ========= GUARANTEED EXPERIENCES BOOT (fix for "stuck on Loading…") =========
+  await bootExperiences(c.id);
+
+  // Re-dispatch once so any late-loaded listeners (if script order changes) catch up
+  try {
+    window.dispatchEvent(new CustomEvent('character:ready', { detail: c }));
+  } catch (e) {
+    console.warn('[xp] re-dispatch failed', e);
+  }
+
   setText?.('msg', '');
 }
 
@@ -868,7 +903,6 @@ function wireLevelUp() {
     const statSelected = choiceStat?.checked;
     if (abilitySel) abilitySel.disabled = !statSelected;
 
-    // Enable confirm if: HP bonus is chosen OR stat bonus chosen with a value
     const canConfirm =
       choiceHp?.checked === true ||
       (statSelected &&
@@ -878,7 +912,6 @@ function wireLevelUp() {
     if (confirmBtn) confirmBtn.disabled = !canConfirm;
   }
 
-  // Populate abilities on open, reset UI
   openBtn.addEventListener('click', async () => {
     back.classList.add('show');
 
@@ -889,7 +922,7 @@ function wireLevelUp() {
     try {
       const { data: statsRow, error } = await sb
         .from('character_stats')
-        .select('*') // tolerant select
+        .select('*')
         .eq('character_id', ch.id)
         .maybeSingle();
 
@@ -922,8 +955,7 @@ function wireLevelUp() {
       abilitySel.innerHTML = `<option value="">(error)</option>`;
     }
 
-    // Default choice each time modal opens
-    if (abilitySel) abilitySel.value = ''; // clear old selection
+    if (abilitySel) abilitySel.value = '';
     if (choiceHp) choiceHp.checked = true;
     if (choiceStat) choiceStat.checked = false;
     if (abilitySel) abilitySel.disabled = true;
@@ -931,14 +963,12 @@ function wireLevelUp() {
     updateUIForChoice();
   });
 
-  // Choice toggles
   choiceHp?.addEventListener('change', updateUIForChoice);
   choiceStat?.addEventListener('change', updateUIForChoice);
   abilitySel?.addEventListener('change', updateUIForChoice);
 
   closeBtn?.addEventListener('click', () => back.classList.remove('show'));
 
-  // Confirm: baseline +1 Max HP; bonus = extra +1 HP OR +1 stat
   confirmBtn?.addEventListener('click', async () => {
     const sb = window.sb;
     const ch = window.AppState?.character;
@@ -955,24 +985,20 @@ function wireLevelUp() {
       return;
     }
 
-    // Baseline +1 HP always; +1 more if HP bonus chosen
     const hpGain = 1 + (takeExtraHp ? 1 : 0);
     const nextLevel = Number(ch.level || 1) + 1;
 
-    // 🔧 Compute BOTH totals
     const prevHpCur = Math.max(0, Number(ch.hp_current ?? 0));
     const prevHpTot = Math.max(0, Number(ch.hp_total ?? 0));
     const nextHpTotal = prevHpTot + hpGain;
-    // bump current by the same amount, but don't exceed new max
     const nextHpCurrent = Math.min(nextHpTotal, prevHpCur + hpGain);
 
-    // 1) Update character: level + HP (current and max)
     const { data: charData, error: charErr } = await sb
       .from('characters')
       .update({
         level: nextLevel,
         hp_total: nextHpTotal,
-        hp_current: nextHpCurrent, // ← make sure this column exists as 'hp_current'
+        hp_current: nextHpCurrent,
       })
       .eq('id', ch.id)
       .select('id, level, hp_total, hp_current, dmg_t1, dmg_t2, evasion')
@@ -984,7 +1010,6 @@ function wireLevelUp() {
       return;
     }
 
-    // 2) Optional: bump one ability
     if (statKey) {
       const { data: statsRow, error: statsErr } = await sb
         .from('character_stats')
@@ -1012,9 +1037,7 @@ function wireLevelUp() {
       }
     }
 
-    // 3) Update local state & repaint
     Object.assign(ch, charData);
-    // (extra defensive paint in case renderHP is not called somewhere)
     setText?.('hpCurrent', ch.hp_current);
     setText?.('hpTotal', ch.hp_total);
     setText?.('charLevelNum', String(ch.level));
@@ -1024,12 +1047,10 @@ function wireLevelUp() {
       console.warn('[renderHP] failed', e);
     }
 
-    // 4) Refresh stats UI and recompute evasion in one go
     if (App.Logic?.evasion?.refreshStatsAndEvasion) {
       await App.Logic.evasion.refreshStatsAndEvasion(sb, ch.id);
     }
 
-    // Feat milestone ping
     const featMsg = ch.level % 6 === 0 ? ' — Feat unlocked (coming soon)!' : '';
     setText?.(
       'msg',
