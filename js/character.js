@@ -360,7 +360,7 @@ async function equipFromInventory(lineId) {
   const chId = window.AppState?.character?.id;
   if (!sb || !chId) return;
 
-  // Load inventory line with joined item
+  // Load the inventory line + item
   const { data: line, error: qErr } = await sb
     .from('character_items')
     .select(
@@ -380,22 +380,28 @@ async function equipFromInventory(lineId) {
     console.warn('[equip] item has no slot');
     return;
   }
+  const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(slot);
 
-  // Check what is currently equipped in this slot
-  const { data: current, error: curErr } = await sb
+  // Read current slot row (may exist even if empty to hold EXO)
+  const { data: curRow, error: curErr } = await sb
     .from('character_equipment')
-    .select('id, item_id, slot')
+    .select('id, item_id, exo_left')
     .eq('character_id', chId)
     .eq('slot', slot)
     .maybeSingle();
+  if (curErr) console.warn('[equip] read slot error', curErr);
 
-  // Behavior: FAIL if occupied
-  if (current?.id && EQUIP_BEHAVIOR === 'fail') {
-    setText?.('msg', `Cannot equip: ${slot} is occupied.`);
-    return;
+  // If an item is already equipped there:
+  if (curRow?.item_id) {
+    if (EQUIP_BEHAVIOR === 'fail') {
+      setText?.('msg', `Cannot equip: ${slot} is occupied.`);
+      return;
+    }
+    // swap: return the old item to inventory
+    await App.Logic.inventory.addById(sb, chId, curRow.item_id, +1);
   }
 
-  // Adjust inventory for the item being equipped: -1
+  // Decrease inventory for the new item
   const nextQty = Math.max(0, Number(line.qty || 1) - 1);
   if (nextQty === 0) {
     await sb.from('character_items').delete().eq('id', line.id);
@@ -403,30 +409,33 @@ async function equipFromInventory(lineId) {
     await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
   }
 
-  // If something is already equipped in this slot and we are swapping, return it to inventory
-  if (current?.id && EQUIP_BEHAVIOR === 'swap') {
-    await App.Logic.inventory.addById(sb, chId, current.item_id, +1);
-    // You can either update existing row or replace it; we’ll replace for clarity
-    await sb.from('character_equipment').delete().eq('id', current.id);
-  } else if (current?.id) {
-    // In case EQUIP_BEHAVIOR changed later, ensure there’s no duplicate
-    await sb.from('character_equipment').delete().eq('id', current.id);
+  // Upsert the equipment slot, PRESERVING exo_left if present
+  const armorVal = Number(item?.armor_value ?? 0) || 0;
+
+  if (curRow?.id) {
+    // Update existing row (keep exo_left)
+    await sb
+      .from('character_equipment')
+      .update({
+        item_id: item.id,
+        slots_remaining: armorVal,
+      })
+      .eq('id', curRow.id);
+  } else {
+    // No row yet (first-time) → insert and seed exo for armor slots
+    await sb.from('character_equipment').insert({
+      character_id: chId,
+      slot,
+      item_id: item.id,
+      slots_remaining: armorVal,
+      exo_left: isArmorSlot ? 1 : 0,
+    });
   }
 
-  // Insert the new equipment row
-  const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(slot);
-  await sb.from('character_equipment').insert({
-    character_id: chId,
-    slot,
-    item_id: item.id,
-    slots_remaining: Number(item?.armor_value ?? 0) || 0,
-    exo_left: isArmorSlot ? 1 : 0,
-  });
-
-  // Optional: handle abilities (your existing helper)
+  // Ability side-effect (optional hook you already have)
   await handleAbilityOnEquip(item, slot);
 
-  // Repaint everything
+  // Repaint
   await App.Features.equipment.load(chId);
   await App.Features.equipment.computeAndRenderArmor(chId);
   await App.Features.inventory.load(chId, {
@@ -434,10 +443,8 @@ async function equipFromInventory(lineId) {
     onAdjustQty: adjustNonEquipQty,
   });
   await renderActiveWeapons();
-  setText?.(
-    'msg',
-    EQUIP_BEHAVIOR === 'swap' ? `Swapped ${slot}.` : `Equipped to ${slot}.`
-  );
+
+  setText?.('msg', (curRow?.item_id ? 'Swapped ' : 'Equipped to ') + slot);
 }
 window.equipFromInventory = equipFromInventory;
 

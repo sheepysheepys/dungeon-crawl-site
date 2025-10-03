@@ -145,44 +145,47 @@
     if (error) console.warn('[equipment] clear slot error', error);
   }
 
-  // ------- Unequip flow (return to inventory, then clear slot) -------
+  // ------- Unequip flow (return to inventory, keep EXO) -------
   async function unequipItem(slot) {
-    const client = sb();
+    const client = window.sb;
     const ch = window.AppState?.character;
     if (!client || !ch?.id || !slot) return;
 
-    // 1) find equipped line for this slot
+    // 1) read current row for the slot
     const { data: eq, error: qErr } = await client
       .from('character_equipment')
-      .select('id, item_id')
+      .select('id, item_id, slot, exo_left')
       .eq('character_id', ch.id)
       .eq('slot', slot)
       .maybeSingle();
 
-    if (qErr || !eq) {
-      console.warn('[unequip] none in slot', slot, qErr);
+    if (qErr || !eq || !eq.item_id) {
+      console.warn('[unequip] none equipped in slot', slot, qErr);
       return;
     }
 
-    // 2) return item to inventory (+1)
+    // 2) give the item back to inventory
     await App.Logic.inventory.addById(client, ch.id, eq.item_id, +1);
 
-    // 3) remove equipment row
-    await client.from('character_equipment').delete().eq('id', eq.id);
+    // 3) DO NOT DELETE THE ROW — clear item but keep exo_left intact
+    const { error: upErr } = await client
+      .from('character_equipment')
+      .update({ item_id: null, slots_remaining: 0 })
+      .eq('id', eq.id);
+    if (upErr) console.warn('[unequip] clear item failed', upErr);
 
-    // 4) repaint / recompute armor etc.
+    // 4) repaint
     const rows = await queryEquipment(ch.id);
     updateArmorTopline(rows);
     renderEquipmentList(rows);
     App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
 
-    // Also refresh inventory pane so counts are correct if it’s open
     await App.Features.inventory.load(ch.id, {
       onEquip: window.equipFromInventory,
       onAdjustQty: window.adjustNonEquipQty,
     });
 
-    setText?.('msg', `Unequipped from ${slot}`);
+    setText?.('msg', `Unequipped from ${slot} (exo preserved)`);
   }
 
   // ------- Equipment tab rendering -------
