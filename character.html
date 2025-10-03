@@ -375,18 +375,122 @@
         </section>
 
         <section class="page" id="page-inventory">
+          <!-- Inventory list -->
           <div id="inventoryAllList" class="list"></div>
           <div class="muted" id="inventoryEmpty">Inventory is empty.</div>
-          <div class="row" style="margin-top: 10px">
-            <input id="addItemName" type="text" placeholder="Add item name…" />
-            <input
-              id="addItemQty"
-              type="number"
-              value="1"
-              min="1"
-              style="width: 90px"
-            />
-            <button id="btnAddItem" class="btn-accent">Add</button>
+
+          <!-- Add item -->
+          <div class="box" style="margin-top: 12px">
+            <h4 style="margin: 0 0 8px">Add Item</h4>
+
+            <div
+              class="row"
+              style="gap: 8px; align-items: center; flex-wrap: wrap"
+            >
+              <input
+                id="addItemName"
+                type="text"
+                placeholder="Item name…"
+                style="min-width: 220px"
+              />
+              <input
+                id="addItemQty"
+                type="number"
+                value="1"
+                min="1"
+                style="width: 90px"
+              />
+
+              <label
+                class="inline"
+                style="display: flex; align-items: center; gap: 6px"
+              >
+                <input id="addItemEquippable" type="checkbox" />
+                Equippable
+              </label>
+
+              <button id="btnAddItem" class="btn-accent">Add</button>
+              <span id="addItemMsg" class="muted mono"></span>
+            </div>
+
+            <!-- Equippable fields (shown only when checkbox is checked) -->
+            <div id="addEquipFields" style="display: none; margin-top: 10px">
+              <div
+                class="row"
+                style="gap: 12px; flex-wrap: wrap; align-items: center"
+              >
+                <label
+                  >Slot
+                  <select id="addItemSlot">
+                    <option value="">— choose —</option>
+                    <option value="weapon">Weapon</option>
+                    <option value="offhand">Offhand</option>
+                    <option value="head">Head</option>
+                    <option value="chest">Chest</option>
+                    <option value="legs">Legs</option>
+                    <option value="hands">Hands</option>
+                    <option value="feet">Feet</option>
+                    <option value="trinket">Trinket</option>
+                  </select>
+                </label>
+
+                <label class="inline"
+                  ><input
+                    type="radio"
+                    name="addItemKind"
+                    value="weapon"
+                    checked
+                  />
+                  Weapon</label
+                >
+                <label class="inline"
+                  ><input type="radio" name="addItemKind" value="armor" />
+                  Armor</label
+                >
+                <label class="inline"
+                  ><input type="radio" name="addItemKind" value="other" />
+                  Other</label
+                >
+              </div>
+
+              <!-- Weapon fields -->
+              <div class="row" id="addWeaponRow" style="margin-top: 8px">
+                <label
+                  >Damage
+                  <input
+                    id="addItemDamage"
+                    type="text"
+                    placeholder="e.g., 1d6+1 or 6"
+                  />
+                </label>
+              </div>
+
+              <!-- Armor fields -->
+              <div
+                class="row"
+                id="addArmorRow"
+                style="display: none; margin-top: 8px"
+              >
+                <label
+                  >Armor Value (slots)
+                  <input
+                    id="addItemArmor"
+                    type="number"
+                    min="0"
+                    step="1"
+                    value="0"
+                  />
+                </label>
+              </div>
+
+              <!-- Optional notes saved to items.notes (leave commented if not needed)
+      <div class="row" style="margin-top:8px">
+        <label>Notes
+          <input id="addItemNotes" type="text" placeholder="optional notes…" />
+        </label>
+      </div>
+      -->
+            </div>
           </div>
         </section>
 
@@ -585,7 +689,6 @@
     <script defer src="/dungeon-crawl-site/js/features/awards-loot.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/rests-ui.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/experience.js"></script>
-
     <script
       defer
       src="/dungeon-crawl-site/js/features/equipment-ui.js"

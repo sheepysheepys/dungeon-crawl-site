@@ -47,13 +47,25 @@
            <span class="mono" style="min-width:2ch;display:inline-block;text-align:center">${qty}</span>
            <button class="btn" data-action="inc" data-item="${r.item_id}">+</button>`;
 
+        const meta = r.item?.slot
+          ? r.item.slot === 'weapon'
+            ? r.item.damage
+              ? ` DMG:${r.item.damage}`
+              : ''
+            : Number(r.item.armor_value || 0) > 0
+            ? ` ARM:${r.item.armor_value}`
+            : ''
+          : '';
+
         return `
-        <div class="row" data-line="${r.id}">
-          <div>${name} <span class="muted mono">${slot}</span></div>
-          <div class="spacer"></div>
-          ${controls}
-        </div>
-      `;
+  <div class="row" data-line="${r.id}">
+    <div>${name} <span class="muted mono">${slot}${
+          meta ? ' ·' + meta : ''
+        }</span></div>
+    <div class="spacer"></div>
+    ${controls}
+  </div>
+`;
       })
       .join('');
 

@@ -460,57 +460,106 @@ async function adjustNonEquipQty(itemId, delta) {
 window.adjustNonEquipQty = adjustNonEquipQty;
 
 async function doAddNameBox() {
+  const sb = window.sb;
+  const chId = AppState?.character?.id;
   const nameEl = document.getElementById('addItemName');
   const qtyEl = document.getElementById('addItemQty');
-  const btn = document.getElementById('btnAddItem');
-  if (!nameEl || !qtyEl || !btn) return;
+  const eqCb = document.getElementById('addItemEquippable'); // new (checkbox)
+  const slotSel = document.getElementById('addItemSlot'); // new (select)
+  const kindRadio = () =>
+    document.querySelector('input[name="addItemKind"]:checked')?.value ||
+    'weapon'; // new
+  const dmgEl = document.getElementById('addItemDamage'); // new
+  const avEl = document.getElementById('addItemArmor'); // new
+  const notesEl = document.getElementById('addItemNotes'); // optional
+  const msgEl = document.getElementById('addItemMsg');
 
-  const name = (nameEl.value || '').trim();
-  const qty = Math.max(1, Number(qtyEl.value || 1));
+  const setMsg = (s) => {
+    if (msgEl) msgEl.textContent = s || '';
+  };
+
+  if (!sb || !chId) {
+    setMsg('Not ready.');
+    return;
+  }
+
+  const name = (nameEl?.value || '').trim();
+  const qty = Math.max(1, Number(qtyEl?.value || 1));
   if (!name) {
-    setText?.('msg', 'Enter an item name.');
-    nameEl.focus();
+    setMsg('Enter a name.');
+    nameEl?.focus();
     return;
   }
 
   try {
-    btn.disabled = true;
-    setText?.('msg', 'Adding…');
+    setMsg('Adding…');
+    let itemRes;
 
-    const { item, error } =
-      await App.Logic.inventory.findOrCreateNonEquipByName(window.sb, name);
-    if (error) {
-      setText?.('msg', error);
+    if (eqCb?.checked) {
+      const slot = slotSel?.value || '';
+      const kind = kindRadio();
+      const damage = dmgEl?.value || '';
+      const armor_value = avEl?.value || 0;
+      const notes = notesEl?.value || '';
+      itemRes = await App.Logic.inventory.findOrCreateEquippableByAttrs(sb, {
+        name,
+        slot,
+        kind,
+        damage,
+        armor_value,
+        notes,
+      });
+    } else {
+      itemRes = await App.Logic.inventory.findOrCreateNonEquipByName(sb, name);
+    }
+
+    if (itemRes?.error) {
+      setMsg(itemRes.error);
       return;
     }
-    if (!item) {
-      setText?.('msg', 'Item not found.');
+    if (!itemRes?.item?.id) {
+      setMsg('Could not create/find item.');
       return;
     }
 
-    await App.Logic.inventory.addById(
-      window.sb,
-      AppState.character.id,
-      item.id,
-      qty
-    );
+    await App.Logic.inventory.addById(sb, chId, itemRes.item.id, qty);
 
-    await App.Features.inventory.load(AppState.character.id, {
+    // Refresh inventory UI
+    await App.Features.inventory.load(chId, {
       onEquip: equipFromInventory,
       onAdjustQty: adjustNonEquipQty,
     });
-    await populateNonEquipPicker();
-    nameEl.value = '';
-    qtyEl.value = '1';
-    setText?.('msg', '');
-    nameEl.focus();
+
+    // reset
+    if (nameEl) nameEl.value = '';
+    if (qtyEl) qtyEl.value = 1;
+    setMsg('');
+    nameEl?.focus();
   } catch (err) {
     console.error('[add-box] unexpected error', err);
-    setText?.('msg', 'Add failed.');
-  } finally {
-    btn.disabled = false;
+    setMsg('Add failed.');
   }
 }
+
+(function wireAddItemToggles() {
+  const eqCb = document.getElementById('addItemEquippable');
+  const fields = document.getElementById('addEquipFields');
+  const kindRadios = document.querySelectorAll('input[name="addItemKind"]');
+  const rowW = document.getElementById('addWeaponRow');
+  const rowA = document.getElementById('addArmorRow');
+
+  function sync() {
+    if (fields) fields.style.display = eqCb?.checked ? '' : 'none';
+    const kind =
+      document.querySelector('input[name="addItemKind"]:checked')?.value ||
+      'weapon';
+    if (rowW) rowW.style.display = kind === 'weapon' ? '' : 'none';
+    if (rowA) rowA.style.display = kind === 'armor' ? '' : 'none';
+  }
+  eqCb?.addEventListener('change', sync);
+  kindRadios.forEach((r) => r.addEventListener('change', sync));
+  sync();
+})();
 
 // ================= ACTIVE WEAPONS CARD =================
 async function renderActiveWeapons() {
