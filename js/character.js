@@ -352,11 +352,16 @@ async function handleAbilityOnEquip(item, slot) {
   });
 }
 
-async function equipFromInventory(lineId) {
-  const client = window.sb;
-  const chId = window.AppState.character.id;
+// character.js
+const EQUIP_BEHAVIOR = 'swap'; // or 'fail'
 
-  const { data: line, error: qErr } = await client
+async function equipFromInventory(lineId) {
+  const sb = window.sb;
+  const chId = window.AppState?.character?.id;
+  if (!sb || !chId) return;
+
+  // Load inventory line with joined item
+  const { data: line, error: qErr } = await sb
     .from('character_items')
     .select(
       'id, item_id, qty, item:items(id, name, slot, armor_value, damage, ability_id)'
@@ -364,25 +369,53 @@ async function equipFromInventory(lineId) {
     .eq('id', lineId)
     .maybeSingle();
 
-  if (qErr || !line) {
-    console.warn('[equip] line missing', qErr);
+  if (qErr || !line || !line.item) {
+    console.warn('[equip] line missing', qErr, line);
     return;
   }
+
   const item = line.item;
-  const slot = item?.slot;
+  const slot = item.slot;
   if (!slot) {
     console.warn('[equip] item has no slot');
     return;
   }
 
-  await client
+  // Check what is currently equipped in this slot
+  const { data: current, error: curErr } = await sb
     .from('character_equipment')
-    .delete()
+    .select('id, item_id, slot')
     .eq('character_id', chId)
-    .eq('slot', slot);
+    .eq('slot', slot)
+    .maybeSingle();
 
+  // Behavior: FAIL if occupied
+  if (current?.id && EQUIP_BEHAVIOR === 'fail') {
+    setText?.('msg', `Cannot equip: ${slot} is occupied.`);
+    return;
+  }
+
+  // Adjust inventory for the item being equipped: -1
+  const nextQty = Math.max(0, Number(line.qty || 1) - 1);
+  if (nextQty === 0) {
+    await sb.from('character_items').delete().eq('id', line.id);
+  } else {
+    await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
+  }
+
+  // If something is already equipped in this slot and we are swapping, return it to inventory
+  if (current?.id && EQUIP_BEHAVIOR === 'swap') {
+    await App.Logic.inventory.addById(sb, chId, current.item_id, +1);
+    // You can either update existing row or replace it; we’ll replace for clarity
+    await sb.from('character_equipment').delete().eq('id', current.id);
+  } else if (current?.id) {
+    // In case EQUIP_BEHAVIOR changed later, ensure there’s no duplicate
+    await sb.from('character_equipment').delete().eq('id', current.id);
+  }
+
+  // Insert the new equipment row
   const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(slot);
-  await client.from('character_equipment').insert({
+  await sb.from('character_equipment').insert({
     character_id: chId,
     slot,
     item_id: item.id,
@@ -390,26 +423,21 @@ async function equipFromInventory(lineId) {
     exo_left: isArmorSlot ? 1 : 0,
   });
 
+  // Optional: handle abilities (your existing helper)
   await handleAbilityOnEquip(item, slot);
 
-  const nextQty = Math.max(0, Number(line.qty ?? 1) - 1);
-  if (nextQty === 0) {
-    await client.from('character_items').delete().eq('id', line.id);
-  } else {
-    await client
-      .from('character_items')
-      .update({ qty: nextQty })
-      .eq('id', line.id);
-  }
-
+  // Repaint everything
   await App.Features.equipment.load(chId);
   await App.Features.equipment.computeAndRenderArmor(chId);
   await App.Features.inventory.load(chId, {
     onEquip: equipFromInventory,
     onAdjustQty: adjustNonEquipQty,
   });
-  await App.Features.abilities.render?.(chId);
   await renderActiveWeapons();
+  setText?.(
+    'msg',
+    EQUIP_BEHAVIOR === 'swap' ? `Swapped ${slot}.` : `Equipped to ${slot}.`
+  );
 }
 window.equipFromInventory = equipFromInventory;
 

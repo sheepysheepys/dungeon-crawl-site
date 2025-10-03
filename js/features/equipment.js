@@ -1,28 +1,31 @@
 // /js/features/equipment.js
 (function (App) {
-  const client = window.sb;
+  function sb() {
+    return window.sb;
+  } // safer than capturing at import
 
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
-  const OTHER_SLOTS = ['weapon', 'offhand', 'accessory1', 'accessory2'];
+  const OTHER_SLOTS = ['weapon', 'offhand', 'accessory1', 'accessory2']; // keep your slots
   const ALL_SLOTS = [...OTHER_SLOTS, ...ARMOR_SLOTS];
 
   // ------- Data -------
   async function queryEquipment(characterId) {
+    const client = sb();
+    if (!client) return [];
     const { data, error } = await client
       .from('character_equipment')
       .select(
         'id, slot, item_id, slots_remaining, exo_left, item:items(id, name, slot, armor_value, damage)'
       )
       .eq('character_id', characterId);
+
     if (error) console.warn('[equipment] query error', error);
     return data || [];
   }
 
   // ------- Armor topline (Armor card) -------
   function updateArmorTopline(rows) {
-    const armorRows = (rows || []).filter((r) =>
-      ['head', 'chest', 'legs', 'hands', 'feet'].includes(r.slot)
-    );
+    const armorRows = (rows || []).filter((r) => ARMOR_SLOTS.includes(r.slot));
 
     // 1) Exo count
     let exoOn = armorRows.reduce(
@@ -61,7 +64,7 @@
   }
 
   function armorSlotCard(slot, row) {
-    // Name + buttons
+    // Title
     let title;
     if (!row) {
       title = `${slot.toUpperCase()}: <span class="muted">STRIPPED</span>`;
@@ -71,18 +74,19 @@
       title = `${slot.toUpperCase()}: <span class="muted">Empty</span>`;
     }
 
-    const btn =
-      row && row.item_id
-        ? `<button class="btn-bad"
-             data-unequip="${slot}"
-             data-item-id="${row.item_id}"
-             data-item-name="${row.item?.name || ''}"
-             data-item-rarity="${row.rarity || 'common'}"
-           >Unequip</button>`
-        : '';
+    // Button
+    const btn = row?.item_id
+      ? `<button class="btn-bad" data-unequip="${slot}">Unequip</button>`
+      : '';
 
     // Protection = armor_left + (exo_left ? 1 : 0)
     const prot = protectionBoxes(row);
+
+    // Armor meta
+    const meta =
+      row?.item?.armor_value != null && Number(row.item.armor_value) > 0
+        ? `<div class="mono muted tinybars"><span class="label">Armor:</span> ${row.item.armor_value}</div>`
+        : '';
 
     return `
       <div class="slotCard">
@@ -94,6 +98,7 @@
         <div class="mono muted tinybars">
           <span class="label">Protection:</span> ${prot}
         </div>
+        ${meta}
       </div>
     `;
   }
@@ -109,13 +114,13 @@
       `;
     }
     const btn = row?.item_id
-      ? `<button class="btn-bad"
-           data-unequip="${slot}"
-           data-item-id="${row.item_id}"
-           data-item-name="${row.item?.name || ''}"
-           data-item-rarity="${row.rarity || 'common'}"
-         >Unequip</button>`
+      ? `<button class="btn-bad" data-unequip="${slot}">Unequip</button>`
       : '';
+
+    const dmg = row.item?.damage
+      ? `<div class="mono muted tinybars"><span class="label">Damage:</span> ${row.item.damage}</div>`
+      : '';
+
     return `
       <div class="slotCard">
         <div class="row">
@@ -123,56 +128,61 @@
           <div class="spacer"></div>
           ${btn}
         </div>
-        ${
-          row.item?.damage
-            ? `<div class="mono muted tinybars"><span class="label">Damage:</span> ${row.item.damage}</div>`
-            : ''
-        }
+        ${dmg}
       </div>
     `;
   }
 
   // ------- Slot persistence helper -------
-  async function saveEquipmentSlot(characterId, slot, clear = true) {
-    if (clear) {
-      const { error } = await client
-        .from('character_equipment')
-        .delete()
-        .eq('character_id', characterId)
-        .eq('slot', slot);
-      if (error) console.warn('[equipment] clear slot error', error);
-      return;
-    }
-    // (Optional) implement “set equipment” here when you add equip-by-click.
+  async function clearEquipmentSlot(characterId, slot) {
+    const client = sb();
+    if (!client) return;
+    const { error } = await client
+      .from('character_equipment')
+      .delete()
+      .eq('character_id', characterId)
+      .eq('slot', slot);
+    if (error) console.warn('[equipment] clear slot error', error);
   }
 
-  // ------- Unequip flow (safe: return to inventory, then clear slot) -------
-  async function unequipItem(slot, meta) {
+  // ------- Unequip flow (return to inventory, then clear slot) -------
+  async function unequipItem(slot) {
+    const client = sb();
     const ch = window.AppState?.character;
-    if (!ch) return;
+    if (!client || !ch?.id || !slot) return;
 
-    const { error: rpcErr } = await client.rpc('inventory_adjust', {
-      p_character: ch.id,
-      p_item: meta.itemId,
-      p_item_name: meta.itemName,
-      p_rarity: meta.itemRarity || 'common',
-      p_delta: 1,
-    });
-    if (rpcErr) {
-      console.warn('[equipment] inventory_adjust failed', rpcErr);
-      setText?.('msg', 'Could not return item to inventory.');
+    // 1) find equipped line for this slot
+    const { data: eq, error: qErr } = await client
+      .from('character_equipment')
+      .select('id, item_id')
+      .eq('character_id', ch.id)
+      .eq('slot', slot)
+      .maybeSingle();
+
+    if (qErr || !eq) {
+      console.warn('[unequip] none in slot', slot, qErr);
       return;
     }
 
-    await saveEquipmentSlot(ch.id, slot, true);
+    // 2) return item to inventory (+1)
+    await App.Logic.inventory.addById(client, ch.id, eq.item_id, +1);
 
-    async function load(characterId) {
-      const rows = await queryEquipment(characterId);
-      updateArmorTopline(rows);
-      renderEquipmentList(rows);
-      App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
-      return rows;
-    }
+    // 3) remove equipment row
+    await client.from('character_equipment').delete().eq('id', eq.id);
+
+    // 4) repaint / recompute armor etc.
+    const rows = await queryEquipment(ch.id);
+    updateArmorTopline(rows);
+    renderEquipmentList(rows);
+    App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
+
+    // Also refresh inventory pane so counts are correct if it’s open
+    await App.Features.inventory.load(ch.id, {
+      onEquip: window.equipFromInventory,
+      onAdjustQty: window.adjustNonEquipQty,
+    });
+
+    setText?.('msg', `Unequipped from ${slot}`);
   }
 
   // ------- Equipment tab rendering -------
@@ -208,14 +218,10 @@
 
     // wire unequip buttons
     root.querySelectorAll('[data-unequip]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.preventDefault();
         const slot = btn.getAttribute('data-unequip');
-        const meta = {
-          itemId: btn.getAttribute('data-item-id'),
-          itemName: btn.getAttribute('data-item-name'),
-          itemRarity: btn.getAttribute('data-item-rarity') || 'common',
-        };
-        await unequipItem(slot, meta);
+        await unequipItem(slot);
       });
     });
   }
@@ -224,8 +230,7 @@
   async function computeAndRenderArmor(characterId) {
     const rows = await queryEquipment(characterId);
     updateArmorTopline(rows); // updates Exoskin on / Stripped pieces + ticks
-
-    window.App?.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
+    App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
     return rows;
   }
 
@@ -233,7 +238,7 @@
     const rows = await queryEquipment(characterId);
     updateArmorTopline(rows);
     renderEquipmentList(rows);
-    window.App?.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
+    App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
     return rows;
   }
 

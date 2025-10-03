@@ -1,10 +1,10 @@
-// features/inventory.js
+// /js/features/inventory.js
 (function (global) {
   const App = (global.App = global.App || { Features: {}, Logic: {} });
 
   // Loads and renders inventory. Shows:
-  // - Equippables (item.slot present): "Equip" button, qty label
-  // - Non-equippables (no slot): minus / qty / plus controls
+  // - Equippables (item.slot present): tiny minus/qty/plus + "Equip" button
+  // - Non-equippables (no slot): tiny minus/qty/plus
   async function load(characterId, handlers = {}) {
     const client = global.sb;
     if (!client) return [];
@@ -38,15 +38,9 @@
         const equippable = !!r.item?.slot;
         const name = r.item?.name || '(Unknown)';
         const slot = r.item?.slot || '—';
-        const qty = Number(r.qty || 0);
+        const qty = Math.max(0, Number(r.qty || 0));
 
-        const controls = equippable
-          ? `<div class="mono">x${qty}</div>
-           <button class="btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
-          : `<button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
-   <span class="mono" style="min-width:2ch;display:inline-block;text-align:center">${qty}</span>
-   <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>`;
-
+        // meta tag after slot (DMG/ARM)
         const meta = r.item?.slot
           ? r.item.slot === 'weapon'
             ? r.item.damage
@@ -57,15 +51,33 @@
             : ''
           : '';
 
+        // tiny +/- controls (shared)
+        const qtyControls = `
+          <div class="qty-controls">
+            <button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
+            <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+            <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>
+          </div>`;
+
+        // controls per type
+        const controls = equippable
+          ? `
+            <div class="qty-controls">
+              <button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
+              <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+              <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>
+              <button class="btn-accent" data-action="equip" data-line="${r.id}">Equip</button>
+            </div>`
+          : qtyControls;
+
         return `
-  <div class="row" data-line="${r.id}">
-    <div>${name} <span class="muted mono">${slot}${
+          <div class="row" data-line="${r.id}">
+            <div>${name} <span class="muted mono">${slot}${
           meta ? ' ·' + meta : ''
         }</span></div>
-    <div class="spacer"></div>
-    ${controls}
-  </div>
-`;
+            <div class="spacer"></div>
+            ${controls}
+          </div>`;
       })
       .join('');
 
@@ -74,7 +86,11 @@
       btn.addEventListener('click', async () => {
         const lineId = btn.getAttribute('data-line');
         btn.disabled = true;
-        await handlers.onEquip?.(lineId);
+        try {
+          await handlers.onEquip?.(lineId);
+        } finally {
+          btn.disabled = false;
+        }
       });
     });
 

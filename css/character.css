@@ -1029,9 +1029,25 @@ textarea {
   font-weight: 700;
 }
 
+.qty-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .btn-tiny {
-  font-size: 0.8em;
+  font-size: 0.85em;
   padding: 2px 6px;
-  line-height: 1;
-  min-width: unset;
+  line-height: 1.1;
+  min-width: 0;
+  height: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* If .btn has big padding globally, neutralize it for tiny buttons */
+.btn.btn-tiny,
+.btn-tiny.btn {
+  padding: 2px 6px !important;
 }
