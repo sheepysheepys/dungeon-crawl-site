@@ -464,15 +464,14 @@ async function doAddNameBox() {
   const chId = AppState?.character?.id;
   const nameEl = document.getElementById('addItemName');
   const qtyEl = document.getElementById('addItemQty');
-  const eqCb = document.getElementById('addItemEquippable'); // new (checkbox)
-  const slotSel = document.getElementById('addItemSlot'); // new (select)
-  const kindRadio = () =>
-    document.querySelector('input[name="addItemKind"]:checked')?.value ||
-    'weapon'; // new
-  const dmgEl = document.getElementById('addItemDamage'); // new
-  const avEl = document.getElementById('addItemArmor'); // new
-  const notesEl = document.getElementById('addItemNotes'); // optional
+  const eqCb = document.getElementById('addItemEquippable');
+  const slotSel = document.getElementById('addItemSlot');
+  const dmgEl = document.getElementById('addItemDamage');
+  const avEl = document.getElementById('addItemArmor');
   const msgEl = document.getElementById('addItemMsg');
+  const kind =
+    document.querySelector('input[name="addItemKind"]:checked')?.value ||
+    'weapon';
 
   const setMsg = (s) => {
     if (msgEl) msgEl.textContent = s || '';
@@ -496,18 +495,24 @@ async function doAddNameBox() {
     let itemRes;
 
     if (eqCb?.checked) {
-      const slot = slotSel?.value || '';
-      const kind = kindRadio();
-      const damage = dmgEl?.value || '';
-      const armor_value = avEl?.value || 0;
-      const notes = notesEl?.value || '';
+      // Decide slot based on kind
+      let slot;
+      if (kind === 'armor') {
+        slot = slotSel?.value || ''; // must be one of head/chest/legs/hands/feet
+      } else if (kind === 'weapon') {
+        slot = 'weapon';
+      } else {
+        // other → default to trinket silently
+        slot = 'trinket';
+      }
+
       itemRes = await App.Logic.inventory.findOrCreateEquippableByAttrs(sb, {
         name,
         slot,
         kind,
-        damage,
-        armor_value,
-        notes,
+        damage: dmgEl?.value || '',
+        armor_value: avEl?.value || 0,
+        notes: '', // or pull from a notes input if you add one
       });
     } else {
       itemRes = await App.Logic.inventory.findOrCreateNonEquipByName(sb, name);
@@ -517,14 +522,8 @@ async function doAddNameBox() {
       setMsg(itemRes.error);
       return;
     }
-    if (!itemRes?.item?.id) {
-      setMsg('Could not create/find item.');
-      return;
-    }
-
     await App.Logic.inventory.addById(sb, chId, itemRes.item.id, qty);
 
-    // Refresh inventory UI
     await App.Features.inventory.load(chId, {
       onEquip: equipFromInventory,
       onAdjustQty: adjustNonEquipQty,
@@ -544,18 +543,58 @@ async function doAddNameBox() {
 (function wireAddItemToggles() {
   const eqCb = document.getElementById('addItemEquippable');
   const fields = document.getElementById('addEquipFields');
+  const slotWrap = document.getElementById('addItemSlotWrap');
+  const slotSel = document.getElementById('addItemSlot');
   const kindRadios = document.querySelectorAll('input[name="addItemKind"]');
   const rowW = document.getElementById('addWeaponRow');
   const rowA = document.getElementById('addArmorRow');
 
+  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+
+  function fillOptions(opts) {
+    if (!slotSel) return;
+    slotSel.innerHTML = opts
+      .map(
+        (v) =>
+          `<option value="${v}">${
+            v.charAt(0).toUpperCase() + v.slice(1)
+          }</option>`
+      )
+      .join('');
+    // select first by default
+    if (opts.length) slotSel.value = opts[0];
+  }
+
   function sync() {
-    if (fields) fields.style.display = eqCb?.checked ? '' : 'none';
+    const isEq = !!eqCb?.checked;
+    if (fields) fields.style.display = isEq ? '' : 'none';
+    if (!isEq) return;
+
     const kind =
       document.querySelector('input[name="addItemKind"]:checked')?.value ||
       'weapon';
+
+    // Show/hide damage vs armor inputs
     if (rowW) rowW.style.display = kind === 'weapon' ? '' : 'none';
     if (rowA) rowA.style.display = kind === 'armor' ? '' : 'none';
+
+    if (kind === 'armor') {
+      // Show slot dropdown for armor, with only armor slots
+      if (slotWrap) slotWrap.style.display = '';
+      fillOptions(ARMOR_SLOTS);
+    } else if (kind === 'weapon') {
+      // Hide slot dropdown; we will force slot='weapon' in submit
+      if (slotWrap) slotWrap.style.display = 'none';
+      // keep a fallback value around (not used)
+      fillOptions(['weapon']);
+    } else {
+      // 'other'
+      // Hide slot dropdown (you can switch to fillOptions(['trinket']) if you prefer)
+      if (slotWrap) slotWrap.style.display = 'none';
+      fillOptions(['trinket']);
+    }
   }
+
   eqCb?.addEventListener('change', sync);
   kindRadios.forEach((r) => r.addEventListener('change', sync));
   sync();
