@@ -299,6 +299,13 @@ function subscribeAwardsAndLoot(characterId) {
     .subscribe();
 }
 
+document.addEventListener('character:ready', async (e) => {
+  const ch = e.detail;
+  if (window.sb && ch?.id && App.Features?.experience) {
+    await App.Features.experience.loadExperiences(window.sb, ch.id);
+  }
+});
+
 // ================= EQUIP FLOW + ABILITIES =================
 async function handleAbilityOnEquip(item, slot) {
   if (!item?.ability_id) return;
