@@ -299,11 +299,25 @@ function subscribeAwardsAndLoot(characterId) {
     .subscribe();
 }
 
-document.addEventListener('character:ready', async (e) => {
-  const ch = e.detail;
-  if (window.sb && ch?.id && App.Features?.experience) {
-    await App.Features.experience.loadExperiences(window.sb, ch.id);
+// Hook Experiences to character load
+window.addEventListener('character:ready', (ev) => {
+  const ch = ev.detail;
+  const sb = window.sb; // your Supabase client (already in your project)
+  if (!sb || !ch?.id) {
+    console.warn('[xp] missing sb or character id');
+    return;
   }
+
+  // Load once
+  window.App?.Features?.experience?.loadExperiences(sb, ch.id);
+
+  // Optional: live updates (stores the channel so you can clean it up on character switch)
+  window.AppState = window.AppState || {};
+  if (window.AppState.xpChannel) {
+    sb.removeChannel(window.AppState.xpChannel);
+  }
+  window.AppState.xpChannel =
+    window.App?.Features?.experience?.subscribeExperiences(sb, ch.id);
 });
 
 // ================= EQUIP FLOW + ABILITIES =================
