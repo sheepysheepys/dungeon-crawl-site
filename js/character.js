@@ -637,9 +637,9 @@ async function doAddNameBox() {
 
 // ================= ACTIVE WEAPONS CARD =================
 async function renderActiveWeapons() {
-  const client = window.sb;
+  const sb = window.sb;
   const ch = AppState.character;
-  const { data } = await client
+  const { data } = await sb
     .from('character_equipment')
     .select('slot, item:items(name, damage)')
     .eq('character_id', ch.id)
@@ -660,12 +660,25 @@ async function renderActiveWeapons() {
   rows.forEach((r) => {
     const row = document.createElement('div');
     row.className = 'row';
-    row.innerHTML = `<div>${(r.slot || '').toUpperCase()}: ${
-      r.item?.name || '—'
-    } <span class="muted mono">${r.item?.damage ?? ''}</span></div>`;
+    row.innerHTML = `
+      <div>${(r.slot || '').toUpperCase()}: ${r.item?.name || '—'}
+        <span class="muted mono">${r.item?.damage ?? ''}</span>
+      </div>
+      <div class="spacer"></div>
+      <button class="btn" data-unequip-slot="${r.slot}">Unequip</button>
+    `;
     root.appendChild(row);
   });
 }
+
+// delegated handler (put near your other document.addEventListener('click',...) )
+document.addEventListener('click', async (e) => {
+  const b = e.target.closest('[data-unequip-slot]');
+  if (!b) return;
+  e.preventDefault();
+  const slot = b.getAttribute('data-unequip-slot');
+  await App.Features.equipmentActions.unequipSlot(slot);
+});
 
 // ================= EXO FAILSAFE =================
 async function ensureExoRowsForAllSlots() {
