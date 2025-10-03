@@ -3,7 +3,7 @@
   const $xpList = document.getElementById('xpList');
 
   function escapeHtml(s) {
-    return String(s).replace(
+    return String(s ?? '').replace(
       /[&<>"']/g,
       (m) =>
         ({
@@ -16,15 +16,15 @@
     );
   }
 
-  // Renders up to 4 rows; shows empties if fewer
   function renderRows(rows) {
     if (!$xpList) return;
 
-    const filled = rows
+    const safeRows = Array.isArray(rows) ? rows : [];
+    const filled = safeRows
       .map(
         (xp) => `
       <div class="xp-row">
-        <span class="xp-name">${escapeHtml(xp.xp_name ?? '')}</span>
+        <span class="xp-name">${escapeHtml(xp.xp_name)}</span>
         <span class="xp-bonus">+${Number(xp.xp_bonus ?? 0)}</span>
         <span class="xp-notch" aria-hidden="true"></span>
       </div>
@@ -32,7 +32,7 @@
       )
       .join('');
 
-    const empties = Array.from({ length: Math.max(0, 4 - rows.length) })
+    const empties = Array.from({ length: Math.max(0, 4 - safeRows.length) })
       .map(
         () => `
         <div class="xp-row xp-empty">
@@ -42,42 +42,59 @@
       )
       .join('');
 
-    $xpList.innerHTML = filled + empties;
+    $xpList.innerHTML = (filled || '') + empties;
   }
 
   async function loadExperiences(sb, chId) {
-    if (!$xpList || !sb || !chId) return;
-
-    // Skeleton state
+    if (!$xpList) return;
     $xpList.innerHTML = `
       <div class="xp-row xp-empty">
         <span>Loading…</span><span></span><span class="xp-notch" aria-hidden="true"></span>
       </div>`;
 
-    const { data, error } = await sb
-      .from('character_experiences')
-      .select('id, xp_name, xp_bonus, created_at')
-      .eq('character_id', chId)
-      .order('created_at', { ascending: true });
-
-    if (error) {
-      console.warn('[xp] load error', error);
+    if (!sb) {
       $xpList.innerHTML = `
         <div class="xp-row xp-empty">
-          <span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+          <span>Missing Supabase client</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+        </div>`;
+      return;
+    }
+    if (!chId) {
+      $xpList.innerHTML = `
+        <div class="xp-row xp-empty">
+          <span>No character selected</span><span></span><span class="xp-notch" aria-hidden="true"></span>
         </div>`;
       return;
     }
 
-    renderRows(data || []);
+    try {
+      const { data, error } = await sb
+        .from('character_experiences')
+        .select('id, xp_name, xp_bonus, created_at')
+        .eq('character_id', chId)
+        .order('created_at', { ascending: true });
+
+      if (error) {
+        console.warn('[xp] load error', error);
+        $xpList.innerHTML = `
+          <div class="xp-row xp-empty">
+            <span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+          </div>`;
+        return;
+      }
+
+      renderRows(data || []);
+    } catch (e) {
+      console.error('[xp] exception load', e);
+      $xpList.innerHTML = `
+        <div class="xp-row xp-empty">
+          <span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+        </div>`;
+    }
   }
 
-  // Optional: subscribe to realtime changes for the active character
-  // Call subscribeExperiences(sb, chId) once per character load.
   function subscribeExperiences(sb, chId) {
     if (!sb || !chId) return null;
-
-    // Clean up previous channel if you manage one globally
     const channel = sb
       .channel(`xp-changes-${chId}`)
       .on(
@@ -89,16 +106,10 @@
           filter: `character_id=eq.${chId}`,
         },
         async () => {
-          // Re-fetch on any insert/update/delete for this character
           await loadExperiences(sb, chId);
         }
       )
-      .subscribe((status) => {
-        if (status === 'SUBSCRIBED') {
-          // initial sync can be handled here if desired
-        }
-      });
-
+      .subscribe((status) => console.log('[xp] realtime status', status));
     return channel;
   }
 

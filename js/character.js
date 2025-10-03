@@ -299,25 +299,47 @@ function subscribeAwardsAndLoot(characterId) {
     .subscribe();
 }
 
-// Hook Experiences to character load
+// Hook Experiences to character load (paste once in your main boot, e.g., character.js)
 window.addEventListener('character:ready', (ev) => {
-  const ch = ev.detail;
-  const sb = window.sb; // your Supabase client (already in your project)
-  if (!sb || !ch?.id) {
-    console.warn('[xp] missing sb or character id');
+  const ch = ev.detail || {};
+  const sb = window.sb;
+
+  // Some of your objects sometimes use character_id; be permissive:
+  const chId = ch.id ?? ch.character_id;
+
+  console.log('[xp] character:ready', { hasSb: !!sb, chId, ch });
+
+  if (!document.getElementById('xpList')) {
+    console.warn('[xp] #xpList missing in DOM');
+    return;
+  }
+  if (!sb) {
+    document.getElementById('xpList').innerHTML = `
+      <div class="xp-row xp-empty">
+        <span>Missing Supabase client</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+      </div>`;
+    return;
+  }
+  if (!chId) {
+    document.getElementById('xpList').innerHTML = `
+      <div class="xp-row xp-empty">
+        <span>No character selected</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+      </div>`;
     return;
   }
 
   // Load once
-  window.App?.Features?.experience?.loadExperiences(sb, ch.id);
+  window.App?.Features?.experience?.loadExperiences(sb, chId);
 
-  // Optional: live updates (stores the channel so you can clean it up on character switch)
+  // Realtime (clean old channel if any)
   window.AppState = window.AppState || {};
   if (window.AppState.xpChannel) {
-    sb.removeChannel(window.AppState.xpChannel);
+    try {
+      sb.removeChannel(window.AppState.xpChannel);
+    } catch {}
   }
   window.AppState.xpChannel =
-    window.App?.Features?.experience?.subscribeExperiences(sb, ch.id);
+    window.App?.Features?.experience?.subscribeExperiences?.(sb, chId);
 });
 
 // ================= EQUIP FLOW + ABILITIES =================
