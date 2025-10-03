@@ -1,6 +1,8 @@
 // /js/features/experience.js
 (function (App) {
-  const $xpList = document.getElementById('xpList');
+  function $list() {
+    return document.getElementById('xpList'); // query at call time
+  }
 
   function escapeHtml(s) {
     return String(s ?? '').replace(
@@ -17,7 +19,8 @@
   }
 
   function renderRows(rows) {
-    if (!$xpList) return;
+    const el = $list();
+    if (!el) return;
 
     const safeRows = Array.isArray(rows) ? rows : [];
     const filled = safeRows
@@ -42,25 +45,27 @@
       )
       .join('');
 
-    $xpList.innerHTML = (filled || '') + empties;
+    el.innerHTML = (filled || '') + empties;
   }
 
   async function loadExperiences(sb, chId) {
-    if (!$xpList) return;
-    $xpList.innerHTML = `
+    const el = $list();
+    if (!el) return; // DOM not ready yet
+
+    el.innerHTML = `
       <div class="xp-row xp-empty">
         <span>Loading…</span><span></span><span class="xp-notch" aria-hidden="true"></span>
       </div>`;
 
     if (!sb) {
-      $xpList.innerHTML = `
+      el.innerHTML = `
         <div class="xp-row xp-empty">
           <span>Missing Supabase client</span><span></span><span class="xp-notch" aria-hidden="true"></span>
         </div>`;
       return;
     }
     if (!chId) {
-      $xpList.innerHTML = `
+      el.innerHTML = `
         <div class="xp-row xp-empty">
           <span>No character selected</span><span></span><span class="xp-notch" aria-hidden="true"></span>
         </div>`;
@@ -76,7 +81,7 @@
 
       if (error) {
         console.warn('[xp] load error', error);
-        $xpList.innerHTML = `
+        el.innerHTML = `
           <div class="xp-row xp-empty">
             <span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span>
           </div>`;
@@ -86,10 +91,13 @@
       renderRows(data || []);
     } catch (e) {
       console.error('[xp] exception load', e);
-      $xpList.innerHTML = `
-        <div class="xp-row xp-empty">
-          <span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span>
-        </div>`;
+      const el2 = $list();
+      if (el2) {
+        el2.innerHTML = `
+          <div class="xp-row xp-empty">
+            <span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span>
+          </div>`;
+      }
     }
   }
 

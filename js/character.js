@@ -717,27 +717,35 @@ document.addEventListener('click', async (e) => {
 
 // ================= INIT HELPERS (Experiences boot) =================
 async function bootExperiences(chId) {
-  const list = document.getElementById('xpList');
-  if (!list || !chId) return;
-
   const ok = await waitFor(
-    () => !!window.sb && !!window.App?.Features?.experience?.loadExperiences
+    () =>
+      !!window.sb &&
+      !!window.App?.Features?.experience?.loadExperiences &&
+      !!document.getElementById('xpList'),
+    { tries: 40, delayMs: 125 }
   );
 
+  console.log('[xp] boot check', {
+    hasSb: !!window.sb,
+    hasFeature: !!window.App?.Features?.experience?.loadExperiences,
+    hasDom: !!document.getElementById('xpList'),
+    chId,
+  });
+
+  const list = document.getElementById('xpList');
   if (!ok) {
-    console.warn('[xp] Not ready after wait (sb/feature missing)');
-    list.innerHTML = `
-      <div class="xp-row xp-empty"><span>Supabase or XP feature not ready</span><span></span><span class="xp-notch" aria-hidden="true"></span>
-      </div>`;
+    console.warn('[xp] Not ready after wait (sb/feature/dom missing)');
+    if (list) {
+      list.innerHTML = `
+        <div class="xp-row xp-empty"><span>Not ready yet…</span><span></span><span class="xp-notch" aria-hidden="true"></span></div>`;
+    }
     return;
   }
 
   const sb = window.sb;
-  // Load + subscribe (this is the guaranteed path)
   try {
     await window.App.Features.experience.loadExperiences(sb, chId);
 
-    // Reset previous channel if any
     window.AppState = window.AppState || {};
     if (window.AppState.xpChannel) {
       try {
@@ -748,8 +756,10 @@ async function bootExperiences(chId) {
       window.App.Features.experience.subscribeExperiences?.(sb, chId) || null;
   } catch (e) {
     console.warn('[xp] boot load failed', e);
-    list.innerHTML = `
-      <div class="xp-row xp-empty"><span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span></div>`;
+    if (list) {
+      list.innerHTML = `
+        <div class="xp-row xp-empty"><span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span></div>`;
+    }
   }
 }
 
