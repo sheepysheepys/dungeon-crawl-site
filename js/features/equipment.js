@@ -149,8 +149,7 @@
       return;
     }
 
-    // 2) return the item to inventory (+1) — do it explicitly so we can see errors
-    //    (This mirrors App.Logic.inventory.addById but with error surfacing.)
+    // 2) +1 back to inventory (update-or-insert)
     const { data: existing, error: exErr } = await client
       .from('character_items')
       .select('id, qty')
@@ -188,7 +187,7 @@
       }
     }
 
-    // 3) clear the equipped item but KEEP exo_left
+    // 3) Clear item but KEEP exo_left (so topline exo remains)
     const { error: clrErr } = await client
       .from('character_equipment')
       .update({ item_id: null, slots_remaining: 0 })
@@ -199,7 +198,7 @@
       return;
     }
 
-    // 4) repaint
+    // 4) repaint (hide card by not rendering empty rows)
     const rows = await queryEquipment(ch.id);
     updateArmorTopline(rows);
     renderEquipmentList(rows);
@@ -220,27 +219,22 @@
     const empty = document.querySelector('#equipmentEmpty');
     if (!root) return;
 
-    // Build lookup just for armor
-    const bySlot = Object.fromEntries(ARMOR_SLOTS.map((s) => [s, null]));
-    (rows || []).forEach((r) => {
-      if (ARMOR_SLOTS.includes(r.slot)) bySlot[r.slot] = r;
-    });
+    // Only armor rows with an equipped item_id
+    const armorRowsWithItems = (rows || []).filter(
+      (r) => ARMOR_SLOTS.includes(r.slot) && !!r.item_id
+    );
 
-    // Armor section only
-    const armorSection = `
-      <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
-      ${ARMOR_SLOTS.map((s) => armorSlotCard(s, bySlot[s])).join('')}
-    `;
-
-    root.innerHTML = armorSection;
+    root.innerHTML = `
+    <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
+    ${armorRowsWithItems.map((r) => armorSlotCard(r.slot, r)).join('')}
+  `;
 
     if (empty) {
-      const anyArmor = ARMOR_SLOTS.some((s) => bySlot[s] != null);
+      const anyArmor = armorRowsWithItems.length > 0;
       empty.textContent = anyArmor ? '' : 'No armor equipped.';
       empty.style.display = anyArmor ? 'none' : '';
     }
 
-    // wire unequip buttons (armor only now)
     root.querySelectorAll('[data-unequip]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
@@ -248,7 +242,6 @@
         if (typeof unequipItem === 'function') {
           await unequipItem(slot);
         } else {
-          // fallback to global if needed
           await window.unequipSlot?.(slot);
         }
       });

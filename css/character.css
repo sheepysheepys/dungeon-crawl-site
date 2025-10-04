@@ -362,6 +362,7 @@ textarea {
   background: var(--bg);
 }
 .tab {
+  position: relative;
   padding: 8px 12px;
   border: 1px solid var(--line);
   border-bottom: none;
@@ -380,10 +381,8 @@ textarea {
   display: block !important;
 }
 
-.tab {
-  position: relative;
-}
-.badge {
+/* scope the tab badge so it doesn't clash with other .badge uses */
+.tab .badge {
   display: inline-block;
   min-width: 18px;
   padding: 0 6px;
@@ -461,7 +460,6 @@ textarea {
   display: grid;
   gap: 10px;
 }
-
 .choice-card {
   display: grid;
   grid-template-columns: auto 1fr;
@@ -473,16 +471,13 @@ textarea {
   background: var(--surface-2);
   cursor: pointer;
 }
-
 .choice-card input[type='radio'] {
   margin-top: 4px;
   transform: scale(1.1);
 }
-
 .choice-content .choice-title {
   font-weight: 700;
 }
-
 .choice-content .choice-desc {
   font-size: 12px;
 }
@@ -703,22 +698,28 @@ textarea {
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
 }
-.armor-track .tick {
+
+/* Shared “pip/tick” visuals */
+.armor-track .tick,
+.exo-track .pip,
+.totals .pip {
   height: 6px;
   border: 1px solid var(--line);
   border-radius: 999px;
-  opacity: 0.8;
   background: linear-gradient(
     180deg,
     rgba(255, 255, 255, 0.04),
     rgba(0, 0, 0, 0.25)
   );
+  opacity: 0.8;
 }
-#armorCard .armor-track .tick.filled {
+#armorCard .armor-track .tick.filled,
+.exo-track .pip.filled,
+.totals .pip.filled {
   background: linear-gradient(180deg, var(--accent), #436b9f);
   border-color: var(--accent);
   opacity: 1;
-  box-shadow: 0 0 0 1px rgba(4, 96, 246, 0.25) inset;
+  box-shadow: 0 0 0 1px rgba(155, 193, 255, 0.25) inset;
 }
 
 /* Evasion / Hope / Experience compact */
@@ -775,23 +776,6 @@ textarea {
   grid-template-columns: repeat(5, 1fr);
   gap: 6px;
   margin: 8px 0 12px;
-}
-.exo-track .pip {
-  height: 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(0, 0, 0, 0.25)
-  );
-  opacity: 0.8;
-}
-.exo-track .pip.filled {
-  background: linear-gradient(180deg, var(--accent), #436b9f);
-  border-color: var(--accent);
-  opacity: 1;
-  box-shadow: 0 0 0 1px rgba(155, 193, 255, 0.25) inset;
 }
 
 /* Armor slots */
@@ -918,30 +902,6 @@ textarea {
   font-size: 11px;
 }
 
-/* Exo pips (mini) */
-.totals .pips {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 6px;
-}
-.totals .pip {
-  height: 6px;
-  border: 1px solid var(--line);
-  border-radius: 999px;
-  background: linear-gradient(
-    180deg,
-    rgba(255, 255, 255, 0.04),
-    rgba(0, 0, 0, 0.25)
-  );
-  opacity: 0.8;
-}
-.totals .pip.filled {
-  background: linear-gradient(180deg, var(--accent), #436b9f);
-  border-color: var(--accent);
-  opacity: 1;
-  box-shadow: 0 0 0 1px rgba(155, 193, 255, 0.25) inset;
-}
-
 /* Hover hint for slots */
 .silhouette .overlay .slot-region[title] {
   cursor: help;
@@ -1035,23 +995,28 @@ textarea {
   gap: 6px;
 }
 
-.btn-tiny {
+/* ===== TINY BUTTONS (consolidated) ===== */
+.btn-tiny,
+button.btn-tiny,
+.btn.btn-tiny,
+.btn-tiny.btn {
   font-size: 0.85em;
-  padding: 2px 6px;
+  padding: 2px 6px !important;
   line-height: 1.1;
   min-width: 0;
   height: auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
+  width: auto !important;
+}
+/* if list rows made buttons full-width, undo it just for tiny buttons */
+.list .row button.btn-tiny {
+  width: auto !important;
+  justify-self: start;
 }
 
-/* If .btn has big padding globally, neutralize it for tiny buttons */
-.btn.btn-tiny,
-.btn-tiny.btn {
-  padding: 2px 6px !important;
-}
-
+/* ===== SLOT CARD (scoped badge to avoid conflicts) ===== */
 .slotCard {
   border: 1px solid var(--edge, #2a2a2a);
   border-radius: 8px;
@@ -1070,24 +1035,17 @@ textarea {
   color: var(--muted, #b4b4b4);
   margin-left: 4px;
 }
-.badge {
+.slotCard .badge {
   font: 500 11px/1.1 ui-monospace, SFMono-Regular, Menlo, monospace;
   padding: 3px 6px;
   border-radius: 999px;
   border: 1px solid var(--edge, #2a2a2a);
 }
-.badge.ok {
+.slotCard .badge.ok {
   background: rgba(120, 200, 120, 0.1);
 }
-.badge.empty {
+.slotCard .badge.empty {
   background: rgba(200, 120, 120, 0.1);
-}
-.btn-tiny {
-  font-size: 0.85em;
-  padding: 2px 8px;
-  line-height: 1.1;
-  min-width: 0;
-  height: auto;
 }
 
 .miniBar {
@@ -1120,21 +1078,4 @@ textarea {
 }
 .boxes .gone {
   opacity: 0.35;
-}
-
-/* keep tiny buttons compact everywhere */
-button.btn-tiny {
-  width: auto !important;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 2px 6px;
-  font-size: 0.85em;
-  line-height: 1.1;
-  min-width: 0;
-}
-
-/* if your list rows made buttons full-width, undo it just for tiny buttons */
-.list .row button.btn-tiny {
-  width: auto !important;
 }
