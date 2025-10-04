@@ -66,43 +66,49 @@
   }
 
   function armorSlotCard(slot, row) {
-    // Title
-    let title;
-    if (!row) {
-      title = `${slot.toUpperCase()}: <span class="muted">STRIPPED</span>`;
-    } else if (row.item_id) {
-      title = `${slot.toUpperCase()}: ${row.item?.name || 'Unknown'}`;
-    } else {
-      title = `${slot.toUpperCase()}: <span class="muted">Empty</span>`;
-    }
+    // State
+    const stripped = !row;
+    const hasItem = !!row?.item_id;
+    const name = hasItem
+      ? row.item?.name || 'Unknown'
+      : stripped
+      ? 'STRIPPED'
+      : 'Empty';
+
+    // Armor (no EXO here)
+    const cap = Number(row?.item?.armor_value ?? 0);
+    const left = Math.max(0, Number(row?.slots_remaining ?? 0));
+    const pct = cap > 0 ? Math.max(0, Math.min(100, (left / cap) * 100)) : 0;
+
+    // Badge
+    const badgeCls = left > 0 ? 'badge ok' : 'badge empty';
+    const badge =
+      cap > 0
+        ? `<span class="${badgeCls}">ARM ${left}/${cap}</span>`
+        : `<span class="badge empty">ARM 0/0</span>`;
+
+    // Tiny bar (only if cap > 0)
+    const bar =
+      cap > 0
+        ? `<span class="miniBar" aria-label="Armor left"><i style="width:${pct}%"></i></span>`
+        : ``;
 
     // Button (compact)
-    const btn = row?.item_id
+    const btn = hasItem
       ? `<button class="btn-tiny" data-unequip="${slot}">Unequip</button>`
       : '';
 
-    // Armor left (boxes) — EXO intentionally NOT shown here
-    const armorBoxes = row ? Math.max(0, Number(row.slots_remaining || 0)) : 0;
-    const armorGlyphs = armorBoxes > 0 ? '■'.repeat(armorBoxes) : '—';
-
-    // Item’s total armor capacity (from item definition), optional display
-    const itemArmorCap =
-      row?.item?.armor_value != null && Number(row.item.armor_value) > 0
-        ? `<div class="mono muted tinybars"><span class="label">Armor cap:</span> ${row.item.armor_value}</div>`
-        : '';
-
     return `
     <div class="slotCard">
-      <div class="row">
-        <div>${title}</div>
-        <div class="spacer"></div>
-        ${btn}
+      <div class="slotHead">
+        <div class="slotTitle">${slot.toUpperCase()}:</div>
+        <div class="slotName">${name}</div>
+        <div class="metaRow">
+          ${badge}
+          ${bar}
+          ${btn}
+        </div>
       </div>
-
-      <div class="mono muted tinybars">
-        <span class="label">Armor (left):</span> ${armorGlyphs}
-      </div>
-      ${itemArmorCap}
     </div>
   `;
   }
