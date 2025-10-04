@@ -85,6 +85,19 @@
 +    transform: rotate(0deg); transition: transform .15s ease;
 +  }
 +  #page-awards .expandable.open .chev { transform: rotate(90deg); }
+#page-awards .expandable { cursor: pointer; }
+#page-awards .summary-line {
+  margin-top: 4px; font-size: 12px; color: #a6adbb;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#page-awards .chev {
+  display:inline-block; width:0; height:0; margin-left:6px;
+  border-style: solid; border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent currentColor;
+  transform: rotate(0deg); transition: transform .15s ease;
+}
+#page-awards .expandable.open .chev { transform: rotate(90deg); }
+
 
     `;
     document.head.appendChild(s);
@@ -117,27 +130,28 @@
       const style = document.createElement('style');
       style.id = 'lootRevealStyles';
       style.textContent = `
-        #lootRevealModal.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
-        #lootRevealModal.hidden{display:none}
-        #lootRevealModal .modal{position:relative;background:#fff;color:#111;min-width:320px;max-width:540px;width:90%;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden;z-index:10001}
+    #lootRevealModal.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
+    #lootRevealModal.hidden{display:none}
+    #lootRevealModal .modal{position:relative;background:#fff;color:#111;min-width:320px;max-width:540px;width:90%;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden;z-index:10001}
 
-        #lootRevealModal .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
-        #lootRevealModal .btn-ghost{padding:4px 8px;border:none;background:transparent;cursor:pointer}
+    /* SCOPED buttons/pills so nothing else changes site-wide */
+    #lootRevealModal .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;color:#111}
+    #lootRevealModal .btn-ghost{padding:4px 8px;border:none;background:transparent;cursor:pointer;color:#777}
+    #lootRevealModal .pill{display:inline-flex;align-items:center;line-height:1;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;background:#f7f7f9;color:#111}
+    #lootRevealModal .qty-pill{display:inline-flex;align-items:center;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;background:#fff;color:#111}
 
-        #lootRevealModal .pill{display:inline-block;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
-        #lootRevealModal .rarity-common{background:#f6f6f6}
-        #lootRevealModal .rarity-uncommon{background:#e6f7ec}
-        #lootRevealModal .rarity-rare{background:#e9f0ff}
-        #lootRevealModal .rarity-epic{background:#f3e9ff}
-        #lootRevealModal .rarity-legendary{background:#fff4d6}
+    #lootRevealModal .rarity-common{background:#f6f6f6}
+    #lootRevealModal .rarity-uncommon{background:#e6f7ec}
+    #lootRevealModal .rarity-rare{background:#e9f0ff}
+    #lootRevealModal .rarity-epic{background:#f3e9ff}
+    #lootRevealModal .rarity-legendary{background:#fff4d6}
 
-        #lootRevealModal .muted{color:#666;font-size:12px}
-        #lootRevealModal .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #eee}
-        #lootRevealModal .row:last-child{border-bottom:none}
+    #lootRevealModal .muted{color:#666;font-size:12px}
+    #lootRevealModal .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #eee}
+    #lootRevealModal .row:last-child{border-bottom:none}
 
-        /* confetti canvas: keep under modal and click-through */
-        canvas.confetti-canvas, canvas#confetti-canvas { pointer-events:none !important; z-index:9998 !important; position:fixed !important; inset:0 !important; }
-      `;
+    canvas.confetti-canvas, canvas#confetti-canvas { pointer-events:none !important; z-index:9998 !important; position:fixed !important; inset:0 !important; }
+  `;
       document.head.appendChild(style);
     }
 
@@ -305,8 +319,6 @@
       }
     }
 
-    // Opened (condensed chips)
-    // Opened (summary line + expandable details)
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
@@ -317,7 +329,7 @@
               ? b.contents.revealed
               : [];
 
-            // Build chips + a single-line summary like: "Torch x2 • Copper Coins x14 • Rune Shard x1"
+            // chips
             const chips = revealed
               .map((it) => {
                 const name =
@@ -335,6 +347,7 @@
               })
               .join('');
 
+            // one-line summary
             const summary = revealed
               .map((it) => {
                 const name =
@@ -358,15 +371,16 @@
               <strong>${boxTitle}</strong>
               <span class="pill">${b.rarity}</span>
               <span class="chev" aria-hidden="true"></span>
+              <span class="muted openhide-label" style="margin-left:6px">Open</span>
             </div>
             <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
           </div>
 
-          <!-- One-line summary -->
+          <!-- summary under title -->
           <div class="summary-line">${summary || '—'}</div>
 
-          <!-- Full details (chips), hidden until expanded -->
-          <div class="details">
+          <!-- details start hidden (inline style so CSS can't override) -->
+          <div class="details" style="display:none; margin-top:6px">
             <div class="loot-chips">${
               chips ||
               `<span class="muted">No snapshot found for this box.</span>`
@@ -377,14 +391,20 @@
           })
           .join('');
 
-        // wire expand/collapse (click row or chevron area)
+        // wire expand/collapse (click the row or title area)
         openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
           row.addEventListener('click', (e) => {
-            // ignore clicks on links/buttons if you ever add them
-            if (e.target.closest('button,a')) return;
-            const open = !row.classList.contains('open');
-            row.classList.toggle('open', open);
-            row.setAttribute('aria-expanded', open ? 'true' : 'false');
+            if (e.target.closest('button,a')) return; // ignore future buttons/links
+            const details = row.querySelector('.details');
+            const label = row.querySelector('.openhide-label');
+            const chev = row.querySelector('.chev');
+            const isOpen = details.style.display !== 'none';
+            details.style.display = isOpen ? 'none' : 'block';
+            row.classList.toggle('open', !isOpen);
+            row.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
+            if (label) label.textContent = isOpen ? 'Open' : 'Hide';
+            if (chev)
+              chev.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
           });
         });
       }
@@ -438,7 +458,7 @@
                 <div><strong>${String(name).replace(
                   /[<>&]/g,
                   ''
-                )}</strong> <span class="pill">x${qty}</span></div>
+                )}</strong> <span class="qty-pill">x${qty}</span>
                 <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
               </div>
               <div>${rarityPill(drop).outerHTML}</div>
