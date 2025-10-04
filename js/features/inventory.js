@@ -33,51 +33,61 @@
     }
     if (empty) empty.style.display = 'none';
 
-    root.innerHTML = rows;
     // --- group helpers ---
     const ARMOR_SLOTS = new Set(['head', 'chest', 'legs', 'hands', 'feet']);
     const isWeapon = (r) =>
       r.item?.slot === 'weapon' || r.item?.slot === 'offhand';
     const isArmor = (r) => ARMOR_SLOTS.has(r.item?.slot);
 
+    // Capitalize helper
+    const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
+
     // reusable row renderer
     function renderRow(r) {
-      const equippable = !!r.item?.slot;
-      const name = r.item?.name || '(Unknown)';
-      const slot = r.item?.slot || '—';
+      const item = r.item || {};
+      const equippable = !!item.slot;
+      const name = item.name || '(Unknown)';
+      const slot = item.slot || '';
       const qty = Math.max(0, Number(r.qty || 0));
 
-      const meta = r.item?.slot
-        ? r.item.slot === 'weapon'
-          ? r.item.damage
-            ? ` DMG:${r.item.damage}`
-            : ''
-          : Number(r.item.armor_value || 0) > 0
-          ? ` ARM:${r.item.armor_value}`
-          : ''
-        : '';
+      // ---- DESCRIPTION TEXT (human-friendly) ----
+      let desc = '';
+      if (slot === 'weapon' || slot === 'offhand') {
+        desc = 'Weapon';
+        if (item.damage) desc += ` — Damage: ${String(item.damage)}`;
+      } else if (ARMOR_SLOTS.has(slot)) {
+        desc = `Armor Slot: ${cap(slot)}`;
+        if (Number(item.armor_value || 0) > 0)
+          desc += ` — Armor Rating: ${Number(item.armor_value)}`;
+      } else if (slot) {
+        // other equippables like trinket, accessory, etc.
+        desc = `Equippable — Slot: ${cap(slot)}`;
+      } else {
+        desc = 'Item';
+      }
 
       const controls = equippable
         ? `<div class="qty-controls">
-         <button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
-         <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
-         <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>
-         <button class="btn-accent" data-action="equip" data-line="${r.id}">Equip</button>
-       </div>`
+            <button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
+            <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+            <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>
+            <button class="btn-accent" data-action="equip" data-line="${r.id}">Equip</button>
+           </div>`
         : `<div class="qty-controls">
-         <button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
-         <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
-         <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>
-       </div>`;
+            <button class="btn-tiny" data-action="dec" data-item="${r.item_id}">−</button>
+            <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+            <button class="btn-tiny" data-action="inc" data-item="${r.item_id}">+</button>
+           </div>`;
 
       return `
-    <div class="row" data-line="${r.id}">
-      <div>${name} <span class="muted mono">${slot}${
-        meta ? ' ·' + meta : ''
-      }</span></div>
-      <div class="spacer"></div>
-      ${controls}
-    </div>`;
+        <div class="row" data-line="${r.id}">
+          <div>
+            <strong>${name}</strong>
+            <span class="muted" style="margin-left:6px;">${desc}</span>
+          </div>
+          <div class="spacer"></div>
+          ${controls}
+        </div>`;
     }
 
     // split rows
