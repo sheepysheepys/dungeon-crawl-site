@@ -23,8 +23,6 @@
   // ------- Armor topline (Armor card) -------
   function updateArmorTopline(rows) {
     const armorRows = (rows || []).filter((r) => ARMOR_SLOTS.includes(r.slot));
-
-    // EXO count (how many armor slots still have exo_left)
     let exoOn = armorRows.reduce(
       (n, r) => n + (Number(r?.exo_left ?? 0) > 0 ? 1 : 0),
       0
@@ -49,15 +47,12 @@
     }
 
     // NEW: Total armor boxes left (sum of slots_remaining across all equipped armor)
-    // NEW: Total armor boxes left across all armor slots
     const armorLeftTotal = (rows || [])
       .filter((r) => ARMOR_SLOTS.includes(r.slot))
       .reduce(
         (sum, r) => sum + Math.max(0, Number(r?.slots_remaining || 0)),
         0
       );
-
-    // write into your existing UI node
     setText?.('silArmorCount', armorLeftTotal);
   }
 
@@ -113,10 +108,18 @@
   }
 
   // ------- Unequip flow (return to inventory, keep EXO) -------
+  // ------- Unequip flow (return to inventory, keep EXO, with hard logging) -------
   async function unequipItem(slot) {
     const client = sb();
     const ch = window.AppState?.character;
-    if (!client || !ch?.id || !slot) return;
+    if (!client || !ch?.id || !slot) {
+      console.warn('[unequip] missing client/character/slot', {
+        hasClient: !!client,
+        chId: ch?.id,
+        slot,
+      });
+      return;
+    }
 
     // 1) read current row for the slot
     const { data: eq, error: qErr } = await client
@@ -126,20 +129,66 @@
       .eq('slot', slot)
       .maybeSingle();
 
-    if (qErr || !eq || !eq.item_id) {
-      console.warn('[unequip] none equipped in slot', slot, qErr);
+    if (qErr) {
+      console.warn('[unequip] equip row read error', qErr);
+      setText?.('msg', 'Unequip failed: read error.');
+      return;
+    }
+    if (!eq || !eq.item_id) {
+      console.warn('[unequip] none equipped in slot', slot, { eq });
+      setText?.('msg', 'Nothing to unequip in that slot.');
       return;
     }
 
-    // 2) give the item back to inventory
-    await App.Logic.inventory.addById(client, ch.id, eq.item_id, +1);
+    // 2) return the item to inventory (+1) — do it explicitly so we can see errors
+    //    (This mirrors App.Logic.inventory.addById but with error surfacing.)
+    const { data: existing, error: exErr } = await client
+      .from('character_items')
+      .select('id, qty')
+      .eq('character_id', ch.id)
+      .eq('item_id', eq.item_id)
+      .maybeSingle();
 
-    // 3) DO NOT DELETE THE ROW — clear item but keep exo_left intact
-    const { error: upErr } = await client
+    if (exErr) {
+      console.warn('[unequip] inventory read error', exErr);
+      setText?.('msg', 'Unequip failed: inventory read.');
+      return;
+    }
+
+    if (existing?.id) {
+      const next = Math.max(0, Number(existing.qty || 0) + 1);
+      const { error: upErr } = await client
+        .from('character_items')
+        .update({ qty: next })
+        .eq('id', existing.id);
+      if (upErr) {
+        console.warn('[unequip] inventory qty update error', upErr);
+        setText?.('msg', 'Unequip failed: inventory update.');
+        return;
+      }
+    } else {
+      const { error: insErr } = await client.from('character_items').insert({
+        character_id: ch.id,
+        item_id: eq.item_id,
+        qty: 1,
+      });
+      if (insErr) {
+        console.warn('[unequip] inventory insert error', insErr);
+        setText?.('msg', 'Unequip failed: inventory insert.');
+        return;
+      }
+    }
+
+    // 3) clear the equipped item but KEEP exo_left
+    const { error: clrErr } = await client
       .from('character_equipment')
       .update({ item_id: null, slots_remaining: 0 })
       .eq('id', eq.id);
-    if (upErr) console.warn('[unequip] clear item failed', upErr);
+    if (clrErr) {
+      console.warn('[unequip] clear item failed', clrErr);
+      setText?.('msg', 'Unequip failed: clear slot.');
+      return;
+    }
 
     // 4) repaint
     const rows = await queryEquipment(ch.id);
