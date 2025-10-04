@@ -352,14 +352,15 @@ async function handleAbilityOnEquip(item, slot) {
   });
 }
 
-const EQUIP_BEHAVIOR = 'swap'; // or 'fail'
+// Put near the top of character.js if you want to change behavior:
+const EQUIP_BEHAVIOR = 'swap'; // 'swap' | 'fail'
 
 async function equipFromInventory(lineId) {
   const sb = window.sb;
   const chId = window.AppState?.character?.id;
   if (!sb || !chId) return;
 
-  // Load the inventory line + item
+  // 1) Load the inventory line + item
   const { data: line, error: qErr } = await sb
     .from('character_items')
     .select(
@@ -367,17 +368,19 @@ async function equipFromInventory(lineId) {
     )
     .eq('id', lineId)
     .maybeSingle();
-  if (qErr || !line?.item) return;
+  if (qErr || !line?.item) {
+    console.warn('[equip] inventory line missing', qErr, line);
+    return;
+  }
 
   const item = line.item;
   let targetSlot = item.slot;
   if (!targetSlot) return;
 
-  const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(
-    targetSlot
-  );
+  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+  const isArmorSlot = ARMOR_SLOTS.includes(targetSlot);
 
-  // If it's a weapon and the main weapon slot is occupied, try offhand
+  // 2) If it's a weapon and "weapon" is occupied, try offhand
   if (targetSlot === 'weapon') {
     const { data: wepRow } = await sb
       .from('character_equipment')
@@ -387,7 +390,6 @@ async function equipFromInventory(lineId) {
       .maybeSingle();
 
     if (wepRow?.item_id) {
-      // main hand occupied — check offhand
       const { data: offRow } = await sb
         .from('character_equipment')
         .select('id,item_id')
@@ -395,60 +397,92 @@ async function equipFromInventory(lineId) {
         .eq('slot', 'offhand')
         .maybeSingle();
 
-      // If offhand empty (no row or row without item), use offhand
       if (!offRow?.item_id) {
         targetSlot = 'offhand';
       }
-      // else leave targetSlot = 'weapon' and fall through to swap/fail behavior
+      // else keep targetSlot='weapon' and handle by swap/fail below
     }
   }
 
-  // Read current target slot row (may exist to hold exo)
+  // 3) Read the current equipment row for targetSlot (to preserve exo_left)
   const { data: curRow } = await sb
     .from('character_equipment')
-    .select('id, item_id, exo_left, slot')
+    .select('id, item_id, exo_left, slots_remaining, slot')
     .eq('character_id', chId)
     .eq('slot', targetSlot)
     .maybeSingle();
 
-  // If an item is already there:
+  // 4) If occupied → swap or fail
   if (curRow?.item_id) {
     if (EQUIP_BEHAVIOR === 'fail') {
       setText?.('msg', `Cannot equip: ${targetSlot} is occupied.`);
       return;
     }
-    // swap → return old item to inventory
+    // swap: return old item to inventory
     await App.Logic.inventory.addById(sb, chId, curRow.item_id, +1);
   }
 
-  // Decrement inventory for the new item
-  const nextQty = Math.max(0, Number(line.qty || 1) - 1);
+  // 5) Decrement inventory for the new item
+  const nextQty = Math.max(0, Number(line.qty || 1) + -1);
   if (nextQty === 0) {
     await sb.from('character_items').delete().eq('id', line.id);
   } else {
     await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
   }
 
-  // Upsert the equipment slot, PRESERVING exo_left
-  const armorVal = Number(item?.armor_value ?? 0) || 0;
+  // 6) Restore cached wear if present (so re-equip doesn't refill armor)
+  let wearLeft = null;
+  try {
+    const { data: wearRow } = await sb
+      .from('character_item_wear')
+      .select('armor_left')
+      .eq('character_id', chId)
+      .eq('item_id', item.id)
+      .maybeSingle();
+    if (Number.isFinite(wearRow?.armor_left)) {
+      wearLeft = Math.max(0, wearRow.armor_left);
+    }
+  } catch {}
+
+  // slots_remaining: for armor = wear cache or full; for weapons = 0
+  const armorCap = Number(item?.armor_value ?? 0) || 0;
+  const slotsRemainingToUse = isArmorSlot
+    ? wearLeft != null
+      ? wearLeft
+      : armorCap
+    : 0;
+
+  // 7) Upsert the equipment row (preserve exo_left if row already exists)
   if (curRow?.id) {
     await sb
       .from('character_equipment')
-      .update({ item_id: item.id, slots_remaining: armorVal })
+      .update({ item_id: item.id, slots_remaining: slotsRemainingToUse })
       .eq('id', curRow.id);
   } else {
     await sb.from('character_equipment').insert({
       character_id: chId,
       slot: targetSlot,
       item_id: item.id,
-      slots_remaining: armorVal,
-      exo_left: isArmorSlot ? 1 : 0,
+      slots_remaining: slotsRemainingToUse,
+      exo_left: isArmorSlot ? 1 : 0, // armor gets an exo stub if none existed
     });
   }
 
-  await handleAbilityOnEquip?.(item, targetSlot);
+  // 8) (Optional) abilities on equip
+  try {
+    await handleAbilityOnEquip?.(item, targetSlot);
+  } catch (e) {
+    console.warn('[equip] handleAbilityOnEquip failed', e);
+  }
 
-  // Repaint everything (including active weapons)
+  // 9) Clear wear cache for this item (one-time use)
+  await sb
+    .from('character_item_wear')
+    .delete()
+    .eq('character_id', chId)
+    .eq('item_id', item.id);
+
+  // 10) Repaint everything
   await App?.Features?.equipment?.load?.(chId);
   await App?.Features?.equipment?.computeAndRenderArmor?.(chId);
   await App?.Features?.inventory?.load?.(chId, {

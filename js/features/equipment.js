@@ -23,48 +23,48 @@
   // ------- Armor topline (Armor card) -------
   function updateArmorTopline(rows) {
     const armorRows = (rows || []).filter((r) => ARMOR_SLOTS.includes(r.slot));
+
+    // EXO count
     let exoOn = armorRows.reduce(
       (n, r) => n + (Number(r?.exo_left ?? 0) > 0 ? 1 : 0),
       0
     );
 
-    // Fallback: character.exoskin_slots_remaining if rows missing/zero
+    // Fallback when rows are missing
     if (!armorRows.length || exoOn === 0) {
       const ch = window.AppState?.character;
       const fallback = Number(ch?.exoskin_slots_remaining ?? 0);
       if (fallback > 0) exoOn = Math.min(5, fallback);
     }
 
-    const stripped = 5 - exoOn;
     setText?.('exoOn', exoOn);
-    setText?.('strippedPieces', stripped);
+    setText?.('strippedPieces', Math.max(0, 5 - exoOn));
 
-    // Fill the 5 EXO ticks
+    // Ensure + fill 5 EXO ticks
     const track = document.querySelector('#armorCard .armor-track');
     if (track) {
-      const ticks = Array.from(track.querySelectorAll('.tick')).slice(0, 5);
+      let ticks = Array.from(track.querySelectorAll('.tick'));
+      if (ticks.length !== 5) {
+        track.innerHTML = '';
+        for (let i = 0; i < 5; i++) {
+          const el = document.createElement('div');
+          el.className = 'tick';
+          track.appendChild(el);
+        }
+        ticks = Array.from(track.querySelectorAll('.tick'));
+      }
       ticks.forEach((el, i) => el.classList.toggle('filled', i < exoOn));
     }
 
-    // NEW: Total armor boxes left (sum of slots_remaining across all equipped armor)
-    const armorLeftTotal = (rows || [])
-      .filter((r) => ARMOR_SLOTS.includes(r.slot))
-      .reduce(
-        (sum, r) => sum + Math.max(0, Number(r?.slots_remaining || 0)),
-        0
-      );
+    // Total armor boxes left (sum of slots_remaining across equipped armor)
+    const armorLeftTotal = armorRows.reduce(
+      (sum, r) => sum + Math.max(0, Number(r?.slots_remaining || 0)),
+      0
+    );
     setText?.('silArmorCount', armorLeftTotal);
   }
 
   // ------- Render helpers -------
-  function protectionBoxes(r) {
-    if (!r) return '—'; // fully stripped (no row)
-    const armorLeft = Math.max(0, Number(r.slots_remaining || 0));
-    const exo = Math.max(0, Number(r.exo_left || 0)) > 0 ? 1 : 0;
-    const total = armorLeft + exo;
-    return total > 0 ? '■'.repeat(total) : '—';
-  }
-
   function armorSlotCard(slot, row) {
     let title;
     if (!row) {
@@ -83,7 +83,6 @@
     const left = Math.max(0, Number(row?.slots_remaining ?? 0));
     const exoLeft = Math.max(0, Number(row?.exo_left ?? 0));
 
-    // ⚡ Show "STRIPPED" if both armor and exo are gone
     const strippedNote =
       cap > 0 && left === 0 && exoLeft === 0
         ? `<span class="muted strong">STRIPPED</span>`
@@ -92,9 +91,9 @@
     const boxes =
       cap > 0
         ? `<span class="boxes">
-          ${'■'.repeat(left)}
-          <span class="gone">${'■'.repeat(Math.max(0, cap - left))}</span>
-        </span>`
+            ${'■'.repeat(left)}
+            <span class="gone">${'■'.repeat(Math.max(0, cap - left))}</span>
+           </span>`
         : '—';
 
     const badge = `<span class="badge ${
@@ -102,22 +101,25 @@
     }">ARM ${left}/${cap}</span>`;
 
     return `
-    <div class="slotCard">
-      <div class="slotHead">
-        <div class="slotTitle">${slot.toUpperCase()}:</div>
-        <div class="slotName">${row?.item?.name || 'None'} ${strippedNote}</div>
-        <div class="metaRow">
-          ${badge}
-          ${btn}
+      <div class="slotCard">
+        <div class="slotHead">
+          <div class="slotTitle">${slot.toUpperCase()}:</div>
+          <div class="slotName">${
+            row?.item?.name || 'None'
+          } ${strippedNote}</div>
+          <div class="metaRow">
+            ${badge}
+            ${btn}
+          </div>
+        </div>
+        <div class="mono muted tinybars" style="margin-top:6px">
+          <span class="label">Armor:</span> ${boxes}
         </div>
       </div>
-      <div class="mono muted tinybars" style="margin-top:6px">
-        <span class="label">Armor:</span> ${boxes}
-      </div>
-    </div>
-  `;
+    `;
   }
 
+  // ------- Unequip flow (return to inventory, keep EXO, cache wear) -------
   async function unequipItem(slot) {
     const client = sb();
     const ch = window.AppState?.character;
@@ -133,7 +135,7 @@
     // 1) read current row for the slot
     const { data: eq, error: qErr } = await client
       .from('character_equipment')
-      .select('id, item_id, slot, exo_left')
+      .select('id, item_id, slot, exo_left, slots_remaining')
       .eq('character_id', ch.id)
       .eq('slot', slot)
       .maybeSingle();
@@ -149,20 +151,35 @@
       return;
     }
 
-    // 2) +1 back to inventory (update-or-insert)
+    // 2) STASH wear (so re-equip doesn't refill)
+    const armorLeftAtUnequip = Math.max(0, Number(eq?.slots_remaining || 0));
+    try {
+      await client
+        .from('character_item_wear')
+        .upsert(
+          {
+            character_id: ch.id,
+            item_id: eq.item_id,
+            armor_left: armorLeftAtUnequip,
+          },
+          { onConflict: 'character_id,item_id' }
+        );
+    } catch (wearErr) {
+      console.warn('[unequip] wear upsert failed (non-fatal)', wearErr);
+    }
+
+    // 3) +1 back to inventory (update-or-insert)
     const { data: existing, error: exErr } = await client
       .from('character_items')
       .select('id, qty')
       .eq('character_id', ch.id)
       .eq('item_id', eq.item_id)
       .maybeSingle();
-
     if (exErr) {
       console.warn('[unequip] inventory read error', exErr);
       setText?.('msg', 'Unequip failed: inventory read.');
       return;
     }
-
     if (existing?.id) {
       const next = Math.max(0, Number(existing.qty || 0) + 1);
       const { error: upErr } = await client
@@ -187,7 +204,7 @@
       }
     }
 
-    // 3) Clear item but KEEP exo_left (so topline exo remains)
+    // 4) Clear item but KEEP exo_left (so topline exo remains)
     const { error: clrErr } = await client
       .from('character_equipment')
       .update({ item_id: null, slots_remaining: 0 })
@@ -198,7 +215,7 @@
       return;
     }
 
-    // 4) repaint (hide card by not rendering empty rows)
+    // 5) repaint (hide card by not rendering empty rows)
     const rows = await queryEquipment(ch.id);
     updateArmorTopline(rows);
     renderEquipmentList(rows);
@@ -225,9 +242,9 @@
     );
 
     root.innerHTML = `
-    <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
-    ${armorRowsWithItems.map((r) => armorSlotCard(r.slot, r)).join('')}
-  `;
+      <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
+      ${armorRowsWithItems.map((r) => armorSlotCard(r.slot, r)).join('')}
+    `;
 
     if (empty) {
       const anyArmor = armorRowsWithItems.length > 0;
@@ -235,15 +252,12 @@
       empty.style.display = anyArmor ? 'none' : '';
     }
 
+    // wire unequip buttons
     root.querySelectorAll('[data-unequip]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         const slot = btn.getAttribute('data-unequip');
-        if (typeof unequipItem === 'function') {
-          await unequipItem(slot);
-        } else {
-          await window.unequipSlot?.(slot);
-        }
+        await unequipItem(slot);
       });
     });
   }
@@ -251,7 +265,7 @@
   // ------- Public API -------
   async function computeAndRenderArmor(characterId) {
     const rows = await queryEquipment(characterId);
-    updateArmorTopline(rows); // updates Exoskin on / Stripped pieces + ticks
+    updateArmorTopline(rows);
     App.Features?.EquipmentSilhouette?.updateFromEquipmentRows?.(rows);
     return rows;
   }
