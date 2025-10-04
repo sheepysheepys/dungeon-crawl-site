@@ -67,7 +67,7 @@
    #page-awards .show-toggle .btn { font-size:12px; padding:4px 8px }
 
 +  /* Opened rows: compact by default with one-line summary */
-+  #page-awards .expandable { cursor: pointer; }
++  #page-awards .expandable { cursor:pointer; }
 +  #page-awards .summary-line {
 +    margin-top: 4px;
 +    font-size: 12px;
@@ -319,6 +319,7 @@
       }
     }
 
+    // Opened (summary under name, toggle for details)
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
@@ -328,8 +329,21 @@
             const revealed = Array.isArray(b.contents?.revealed)
               ? b.contents.revealed
               : [];
+            const boxTitle = (
+              b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
+            ).replace(/[<>&]/g, '');
 
-            // chips
+            // summary line: "Sword x1 • Boots x1 • Gem x2"
+            const summary =
+              revealed
+                .map((it) => {
+                  const name = it.item_name ?? `Item ${it.item_id}`;
+                  const qty = it.qty ?? 1;
+                  return `${name} x${qty}`;
+                })
+                .join(' • ') || 'No items';
+
+            // detail chips
             const chips = revealed
               .map((it) => {
                 const name =
@@ -342,31 +356,15 @@
             <span class="name">${String(name).replace(/[<>&]/g, '')}</span>
             <span class="qty pill">x${qty}</span>
             <span class="pill rar rarity-${drop}">${drop}</span>
-          </span>
-        `;
+          </span>`;
               })
               .join('');
 
-            // one-line summary
-            const summary = revealed
-              .map((it) => {
-                const name =
-                  (it.item_name ?? `Item ${it.item_id}`) +
-                  (it.ability?.name ? ` (${it.ability.name})` : '');
-                const qty = it.qty ?? 1;
-                return `${name} x${qty}`;
-              })
-              .join(' • ');
-
-            const boxTitle = (
-              b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-            ).replace(/[<>&]/g, '');
-            const rowId = `opened-${b.id}`;
-
+            const id = `opened-${b.id}`;
             return `
-        <div id="${rowId}" class="row expandable" data-expand="${rowId}" role="button" aria-expanded="false"
-             style="flex-direction:column; align-items:stretch">
-          <div class="row" style="justify-content:space-between; border-bottom:none; padding:0 0 2px 0">
+        <div id="${id}" class="row expandable" data-expand="${id}" role="button" aria-expanded="false"
+             style="flex-direction:column; align-items:stretch;">
+          <div class="row" style="justify-content:space-between; border-bottom:none; padding:0;">
             <div>
               <strong>${boxTitle}</strong>
               <span class="pill">${b.rarity}</span>
@@ -377,13 +375,12 @@
           </div>
 
           <!-- summary under title -->
-          <div class="summary-line">${summary || '—'}</div>
+          <div class="summary-line">${summary}</div>
 
-          <!-- details start hidden (inline style so CSS can't override) -->
+          <!-- hidden detail chips -->
           <div class="details" style="display:none; margin-top:6px">
             <div class="loot-chips">${
-              chips ||
-              `<span class="muted">No snapshot found for this box.</span>`
+              chips || `<span class="muted">No snapshot found.</span>`
             }</div>
           </div>
         </div>
@@ -391,10 +388,10 @@
           })
           .join('');
 
-        // wire expand/collapse (click the row or title area)
+        // toggle behavior
         openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
           row.addEventListener('click', (e) => {
-            if (e.target.closest('button,a')) return; // ignore future buttons/links
+            if (e.target.closest('button,a')) return;
             const details = row.querySelector('.details');
             const label = row.querySelector('.openhide-label');
             const chev = row.querySelector('.chev');
