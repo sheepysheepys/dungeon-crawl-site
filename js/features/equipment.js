@@ -66,7 +66,6 @@
   }
 
   function armorSlotCard(slot, row) {
-    // Title
     let title;
     if (!row) {
       title = `${slot.toUpperCase()}: <span class="muted">STRIPPED</span>`;
@@ -76,26 +75,28 @@
       title = `${slot.toUpperCase()}: <span class="muted">Empty</span>`;
     }
 
-    // Button
     const btn = row?.item_id
       ? `<button class="btn-tiny" data-unequip="${slot}">Unequip</button>`
       : '';
 
-    // Armor capacity (total boxes) and left (remaining)
-    const cap = Number(row?.item?.armor_value ?? 0) || 0; // total boxes the item provides
-    const left = Math.max(0, Number(row?.slots_remaining ?? 0)); // boxes remaining on the item
+    const cap = Number(row?.item?.armor_value ?? 0) || 0;
+    const left = Math.max(0, Number(row?.slots_remaining ?? 0));
+    const exoLeft = Math.max(0, Number(row?.exo_left ?? 0));
 
-    // Render boxes: filled = left, faded = spent (cap - left). If cap=0 show —
+    // ⚡ Show "STRIPPED" if both armor and exo are gone
+    const strippedNote =
+      cap > 0 && left === 0 && exoLeft === 0
+        ? `<span class="muted strong">STRIPPED</span>`
+        : '';
+
     const boxes =
       cap > 0
-        ? `<span class="boxes">${'■'.repeat(
-            left
-          )}<span class="gone">${'■'.repeat(
-            Math.max(0, cap - left)
-          )}</span></span>`
+        ? `<span class="boxes">
+          ${'■'.repeat(left)}
+          <span class="gone">${'■'.repeat(Math.max(0, cap - left))}</span>
+        </span>`
         : '—';
 
-    // Inline badge “left/cap” for quick read
     const badge = `<span class="badge ${
       left > 0 ? 'ok' : 'empty'
     }">ARM ${left}/${cap}</span>`;
@@ -104,7 +105,7 @@
     <div class="slotCard">
       <div class="slotHead">
         <div class="slotTitle">${slot.toUpperCase()}:</div>
-        <div class="slotName">${title.replace(/^[A-Z]+:\s*/, '')}</div>
+        <div class="slotName">${row?.item?.name || 'None'} ${strippedNote}</div>
         <div class="metaRow">
           ${badge}
           ${btn}
@@ -270,5 +271,9 @@
   }
 
   App.Features = App.Features || {};
-  App.Features.equipment = { load, computeAndRenderArmor };
+  App.Features.equipment = {
+    load,
+    computeAndRenderArmor,
+    unequipSlot: unequipItem,
+  };
 })(window.App || (window.App = {}));

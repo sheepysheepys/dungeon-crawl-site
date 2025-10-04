@@ -664,19 +664,26 @@ async function renderActiveWeapons() {
         <span class="muted mono">${r.item?.damage ?? ''}</span>
       </div>
       <div class="spacer"></div>
-      <button class="btn" data-unequip-slot="${r.slot}">Unequip</button>
+      <button class="btn-tiny" data-unequip-slot="${r.slot}">Unequip</button>
     `;
     root.appendChild(row);
   });
 }
 
-// delegated handler (put near your other document.addEventListener('click',...) )
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-unequip-slot]');
   if (!b) return;
   e.preventDefault();
   const slot = b.getAttribute('data-unequip-slot');
-  await App.Features.equipmentActions.unequipSlot(slot);
+
+  const fn = App?.Features?.equipment?.unequipSlot || window.unequipSlot;
+
+  if (typeof fn === 'function') {
+    await fn(slot);
+  } else {
+    console.warn('[weapons] unequip handler missing');
+    setText?.('msg', 'Unequip unavailable right now.');
+  }
 });
 
 // ================= EXO FAILSAFE =================
