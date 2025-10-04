@@ -1121,3 +1121,20 @@ textarea {
 .boxes .gone {
   opacity: 0.35;
 }
+
+/* keep tiny buttons compact everywhere */
+button.btn-tiny {
+  width: auto !important;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2px 6px;
+  font-size: 0.85em;
+  line-height: 1.1;
+  min-width: 0;
+}
+
+/* if your list rows made buttons full-width, undo it just for tiny buttons */
+.list .row button.btn-tiny {
+  width: auto !important;
+}

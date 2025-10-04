@@ -352,7 +352,6 @@ async function handleAbilityOnEquip(item, slot) {
   });
 }
 
-// character.js
 const EQUIP_BEHAVIOR = 'swap'; // or 'fail'
 
 async function equipFromInventory(lineId) {
@@ -368,40 +367,61 @@ async function equipFromInventory(lineId) {
     )
     .eq('id', lineId)
     .maybeSingle();
-
-  if (qErr || !line || !line.item) {
-    console.warn('[equip] line missing', qErr, line);
-    return;
-  }
+  if (qErr || !line?.item) return;
 
   const item = line.item;
-  const slot = item.slot;
-  if (!slot) {
-    console.warn('[equip] item has no slot');
-    return;
+  let targetSlot = item.slot;
+  if (!targetSlot) return;
+
+  const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(
+    targetSlot
+  );
+
+  // If it's a weapon and the main weapon slot is occupied, try offhand
+  if (targetSlot === 'weapon') {
+    const { data: wepRow } = await sb
+      .from('character_equipment')
+      .select('id,item_id')
+      .eq('character_id', chId)
+      .eq('slot', 'weapon')
+      .maybeSingle();
+
+    if (wepRow?.item_id) {
+      // main hand occupied — check offhand
+      const { data: offRow } = await sb
+        .from('character_equipment')
+        .select('id,item_id')
+        .eq('character_id', chId)
+        .eq('slot', 'offhand')
+        .maybeSingle();
+
+      // If offhand empty (no row or row without item), use offhand
+      if (!offRow?.item_id) {
+        targetSlot = 'offhand';
+      }
+      // else leave targetSlot = 'weapon' and fall through to swap/fail behavior
+    }
   }
-  const isArmorSlot = ['head', 'chest', 'legs', 'hands', 'feet'].includes(slot);
 
-  // Read current slot row (may exist even if empty to hold EXO)
-  const { data: curRow, error: curErr } = await sb
+  // Read current target slot row (may exist to hold exo)
+  const { data: curRow } = await sb
     .from('character_equipment')
-    .select('id, item_id, exo_left')
+    .select('id, item_id, exo_left, slot')
     .eq('character_id', chId)
-    .eq('slot', slot)
+    .eq('slot', targetSlot)
     .maybeSingle();
-  if (curErr) console.warn('[equip] read slot error', curErr);
 
-  // If an item is already equipped there:
+  // If an item is already there:
   if (curRow?.item_id) {
     if (EQUIP_BEHAVIOR === 'fail') {
-      setText?.('msg', `Cannot equip: ${slot} is occupied.`);
+      setText?.('msg', `Cannot equip: ${targetSlot} is occupied.`);
       return;
     }
-    // swap: return the old item to inventory
+    // swap → return old item to inventory
     await App.Logic.inventory.addById(sb, chId, curRow.item_id, +1);
   }
 
-  // Decrease inventory for the new item
+  // Decrement inventory for the new item
   const nextQty = Math.max(0, Number(line.qty || 1) - 1);
   if (nextQty === 0) {
     await sb.from('character_items').delete().eq('id', line.id);
@@ -409,41 +429,38 @@ async function equipFromInventory(lineId) {
     await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
   }
 
-  // Upsert the equipment slot, PRESERVING exo_left if present
+  // Upsert the equipment slot, PRESERVING exo_left
   const armorVal = Number(item?.armor_value ?? 0) || 0;
-
   if (curRow?.id) {
-    // Update existing row (keep exo_left)
     await sb
       .from('character_equipment')
-      .update({
-        item_id: item.id,
-        slots_remaining: armorVal,
-      })
+      .update({ item_id: item.id, slots_remaining: armorVal })
       .eq('id', curRow.id);
   } else {
-    // No row yet (first-time) → insert and seed exo for armor slots
     await sb.from('character_equipment').insert({
       character_id: chId,
-      slot,
+      slot: targetSlot,
       item_id: item.id,
       slots_remaining: armorVal,
       exo_left: isArmorSlot ? 1 : 0,
     });
   }
 
-  // Ability side-effect (optional hook you already have)
-  await handleAbilityOnEquip(item, slot);
+  await handleAbilityOnEquip?.(item, targetSlot);
 
-  // Repaint
-  await App.Features.equipment.computeAndRenderArmor(chId);
-  await App.Features.inventory.load(chId, {
+  // Repaint everything (including active weapons)
+  await App?.Features?.equipment?.load?.(chId);
+  await App?.Features?.equipment?.computeAndRenderArmor?.(chId);
+  await App?.Features?.inventory?.load?.(chId, {
     onEquip: equipFromInventory,
     onAdjustQty: adjustNonEquipQty,
   });
-  await renderActiveWeapons();
+  await renderActiveWeapons?.();
 
-  setText?.('msg', (curRow?.item_id ? 'Swapped ' : 'Equipped to ') + slot);
+  setText?.(
+    'msg',
+    (curRow?.item_id ? 'Swapped ' : 'Equipped to ') + targetSlot
+  );
 }
 window.equipFromInventory = equipFromInventory;
 
@@ -665,6 +682,7 @@ async function renderActiveWeapons() {
       </div>
       <div class="spacer"></div>
       <button class="btn-tiny" data-unequip-slot="${r.slot}">Unequip</button>
+
     `;
     root.appendChild(row);
   });

@@ -209,6 +209,7 @@
       onEquip: window.equipFromInventory,
       onAdjustQty: window.adjustNonEquipQty,
     });
+    await window.renderActiveWeapons?.();
 
     setText?.('msg', `Unequipped from ${slot} (exo preserved)`);
   }
