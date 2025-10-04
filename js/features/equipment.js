@@ -66,55 +66,57 @@
   }
 
   function armorSlotCard(slot, row) {
-    // State
-    const stripped = !row;
-    const hasItem = !!row?.item_id;
-    const name = hasItem
-      ? row.item?.name || 'Unknown'
-      : stripped
-      ? 'STRIPPED'
-      : 'Empty';
+    // Title
+    let title;
+    if (!row) {
+      title = `${slot.toUpperCase()}: <span class="muted">STRIPPED</span>`;
+    } else if (row.item_id) {
+      title = `${slot.toUpperCase()}: ${row.item?.name || 'Unknown'}`;
+    } else {
+      title = `${slot.toUpperCase()}: <span class="muted">Empty</span>`;
+    }
 
-    // Armor (no EXO here)
-    const cap = Number(row?.item?.armor_value ?? 0);
-    const left = Math.max(0, Number(row?.slots_remaining ?? 0));
-    const pct = cap > 0 ? Math.max(0, Math.min(100, (left / cap) * 100)) : 0;
-
-    // Badge
-    const badgeCls = left > 0 ? 'badge ok' : 'badge empty';
-    const badge =
-      cap > 0
-        ? `<span class="${badgeCls}">ARM ${left}/${cap}</span>`
-        : `<span class="badge empty">ARM 0/0</span>`;
-
-    // Tiny bar (only if cap > 0)
-    const bar =
-      cap > 0
-        ? `<span class="miniBar" aria-label="Armor left"><i style="width:${pct}%"></i></span>`
-        : ``;
-
-    // Button (compact)
-    const btn = hasItem
+    // Button
+    const btn = row?.item_id
       ? `<button class="btn-tiny" data-unequip="${slot}">Unequip</button>`
       : '';
+
+    // Armor capacity (total boxes) and left (remaining)
+    const cap = Number(row?.item?.armor_value ?? 0) || 0; // total boxes the item provides
+    const left = Math.max(0, Number(row?.slots_remaining ?? 0)); // boxes remaining on the item
+
+    // Render boxes: filled = left, faded = spent (cap - left). If cap=0 show —
+    const boxes =
+      cap > 0
+        ? `<span class="boxes">${'■'.repeat(
+            left
+          )}<span class="gone">${'■'.repeat(
+            Math.max(0, cap - left)
+          )}</span></span>`
+        : '—';
+
+    // Inline badge “left/cap” for quick read
+    const badge = `<span class="badge ${
+      left > 0 ? 'ok' : 'empty'
+    }">ARM ${left}/${cap}</span>`;
 
     return `
     <div class="slotCard">
       <div class="slotHead">
         <div class="slotTitle">${slot.toUpperCase()}:</div>
-        <div class="slotName">${name}</div>
+        <div class="slotName">${title.replace(/^[A-Z]+:\s*/, '')}</div>
         <div class="metaRow">
           ${badge}
-          ${bar}
           ${btn}
         </div>
+      </div>
+      <div class="mono muted tinybars" style="margin-top:6px">
+        <span class="label">Armor:</span> ${boxes}
       </div>
     </div>
   `;
   }
 
-  // ------- Unequip flow (return to inventory, keep EXO) -------
-  // ------- Unequip flow (return to inventory, keep EXO, with hard logging) -------
   async function unequipItem(slot) {
     const client = sb();
     const ch = window.AppState?.character;

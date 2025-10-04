@@ -1112,3 +1112,12 @@ textarea {
   gap: 8px;
   margin-left: auto;
 }
+
+.boxes {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: 2px;
+  opacity: 0.9;
+}
+.boxes .gone {
+  opacity: 0.35;
+}
