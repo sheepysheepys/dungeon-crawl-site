@@ -436,7 +436,6 @@ async function equipFromInventory(lineId) {
   await handleAbilityOnEquip(item, slot);
 
   // Repaint
-  await App.Features.equipment.load(chId);
   await App.Features.equipment.computeAndRenderArmor(chId);
   await App.Features.inventory.load(chId, {
     onEquip: equipFromInventory,
