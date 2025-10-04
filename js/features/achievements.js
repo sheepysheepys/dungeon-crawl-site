@@ -413,4 +413,30 @@
 
   document.addEventListener('DOMContentLoaded', render);
   window.App.Features.Achievements = { render };
+
+  // --- Back-compat shim for character.js expecting App.Features.awards ---
+  window.App = window.App || { Features: {} };
+  window.App.Features = window.App.Features || {};
+
+  // Expose the same API the old awards-loot.js provided
+  window.App.Features.awards = {
+    // character.js calls awards.render() when switching to the Awards tab
+    render: () => {
+      // delegate to the new module’s render (same behaviour)
+      return window.App.Features.Achievements?.render?.();
+    },
+    // Some old code might call awards.openLootBox(id). Keep it working:
+    openLootBox: (lootBoxId) => {
+      // call the new open flow (uses seeded contents + modal)
+      try {
+        // openBox is in-scope inside this file, so we can call it directly
+        return typeof openBox === 'function' ? openBox(lootBoxId) : null;
+      } catch (e) {
+        console.warn('[awards shim] openLootBox failed', e);
+        return null;
+      }
+    },
+    // Not needed anymore (we handle realtime inside achievements.js), but keep a no-op:
+    subscribe: () => {},
+  };
 })();
