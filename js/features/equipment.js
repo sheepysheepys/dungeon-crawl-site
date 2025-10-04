@@ -1,11 +1,10 @@
-// /js/features/equipment.js
 (function (App) {
   function sb() {
     return window.sb;
-  } // safer than capturing at import
+  }
 
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
-  const OTHER_SLOTS = ['weapon', 'offhand', 'accessory1', 'accessory2']; // keep your slots
+  // const OTHER_SLOTS = ['weapon', 'offhand', 'accessory1', 'accessory2']; // keep your slots
   const ALL_SLOTS = [...OTHER_SLOTS, ...ARMOR_SLOTS];
 
   // ------- Data -------
@@ -194,37 +193,36 @@
     const empty = document.querySelector('#equipmentEmpty');
     if (!root) return;
 
-    // Build lookup by slot (ensure all slots are represented)
-    const bySlot = Object.fromEntries(ALL_SLOTS.map((s) => [s, null]));
+    // Only care about armor slots here
+    const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+
+    // Build lookup just for armor
+    const bySlot = Object.fromEntries(ARMOR_SLOTS.map((s) => [s, null]));
     (rows || []).forEach((r) => {
-      if (ALL_SLOTS.includes(r.slot)) bySlot[r.slot] = r;
+      if (ARMOR_SLOTS.includes(r.slot)) bySlot[r.slot] = r;
     });
 
-    // Armor section
+    // Armor section only
     const armorSection = `
-      <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
-      ${ARMOR_SLOTS.map((s) => armorSlotCard(s, bySlot[s])).join('')}
-    `;
+    <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
+    ${ARMOR_SLOTS.map((s) => armorSlotCard(s, bySlot[s])).join('')}
+  `;
 
-    // Other gear section
-    const otherSection = `
-      <h4 class="muted" style="margin: 14px 0 8px 0">Other Gear</h4>
-      ${OTHER_SLOTS.map((s) => otherSlotCard(s, bySlot[s])).join('')}
-    `;
-
-    root.innerHTML = armorSection + otherSection;
+    root.innerHTML = armorSection;
 
     if (empty) {
-      const anyRows = (rows || []).length > 0;
-      empty.style.display = anyRows ? 'none' : '';
+      // "any armor rows" = either an equipped item for a slot OR an existing row for that slot
+      const anyArmor = ARMOR_SLOTS.some((s) => !!bySlot[s]);
+      empty.textContent = anyArmor ? '' : 'No armor equipped.';
+      empty.style.display = anyArmor ? 'none' : '';
     }
 
-    // wire unequip buttons
+    // wire unequip buttons (armor only now)
     root.querySelectorAll('[data-unequip]').forEach((btn) => {
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         const slot = btn.getAttribute('data-unequip');
-        await unequipItem(slot);
+        await window.unequipSlot?.(slot);
       });
     });
   }
