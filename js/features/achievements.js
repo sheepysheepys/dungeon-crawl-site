@@ -15,6 +15,33 @@
     return true;
   }
 
+  async function fireConfetti() {
+    // Load once
+    if (!window.confetti) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement('script');
+        s.src =
+          'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+        s.onload = resolve;
+        s.onerror = reject;
+        document.head.appendChild(s);
+      });
+    }
+    // A quick party burst
+    const end = Date.now() + 500; // 0.5s
+    (function frame() {
+      window.confetti({
+        particleCount: 60,
+        spread: 70,
+        startVelocity: 45,
+        scalar: 0.9,
+        ticks: 120,
+        origin: { y: 0.3 }, // top-ish
+      });
+      if (Date.now() < end) requestAnimationFrame(frame);
+    })();
+  }
+
   /* ---------- Modal helpers ---------- */
   function ensureModal() {
     let m = $('#lootModal');
@@ -78,7 +105,9 @@
         .order('created_at', { ascending: false }),
       supa
         .from('loot_boxes')
-        .select('*')
+        .select(
+          'id, character_id, rarity, status, created_at, opened_at, contents'
+        ) // <— contents added
         .eq('character_id', charId)
         .order('created_at', { ascending: false }),
     ]);
@@ -140,7 +169,7 @@
           .join('')
       : `<div class="muted">No items in this box.</div>`;
     modal.classList.remove('hidden');
-
+    fireConfetti(); // 🎉
     await render(); // move box from Unopened → Opened lists
   }
 
@@ -284,6 +313,7 @@
     const unopened = boxes.filter((b) => b.status === 'unopened');
     const opened = boxes.filter((b) => b.status === 'opened');
 
+    // Unopened
     const h1 = el('h3');
     h1.textContent = 'Unopened Loot Boxes';
     panelEl.appendChild(h1);
@@ -308,10 +338,9 @@
         const right = el('div', 'row');
         const btn = el('button', 'btn-accent');
         btn.textContent = 'Open';
-        // no safe-area gating; we allow anywhere
         btn.addEventListener('click', async () => {
-          btn.disabled = true; // prevent double clicks during RPC
-          await openBox(b);
+          btn.disabled = true;
+          await openBox(b); // will pop modal + move to opened
           btn.disabled = false;
         });
         right.append(btn);
@@ -321,6 +350,7 @@
       });
     }
 
+    // Opened + contents
     const h2 = el('h3');
     h2.textContent = 'Opened Boxes';
     h2.style.marginTop = '10px';
@@ -333,6 +363,12 @@
     } else {
       opened.forEach((b) => {
         const row = el('div', 'row');
+        row.style.flexDirection = 'column';
+        row.style.alignItems = 'stretch';
+
+        // header
+        const head = el('div', 'row');
+        head.style.justifyContent = 'space-between';
         const left = el('div');
         left.append(
           'Loot Box ',
@@ -343,7 +379,39 @@
         left.querySelector('.stamp').textContent = fmt(
           b.opened_at || b.created_at
         );
-        row.append(left);
+        head.append(left);
+        row.append(head);
+
+        // revealed items (if any)
+        const rev = b.contents?.revealed;
+        const list = el('div');
+        list.className = 'list';
+        list.style.margin = '6px 0 0';
+        if (Array.isArray(rev) && rev.length) {
+          list.innerHTML = rev
+            .map((it) => {
+              const name = it.item_name ?? `Item ${it.item_id}`;
+              const qty = it.qty ?? 1;
+              const drop = it.drop_rarity ?? '';
+              const base = it.base_rarity ?? '';
+              const abil = it.ability?.name
+                ? ` • Ability: ${it.ability.name}`
+                : '';
+              return `
+            <div class="row" style="padding:4px 0; border-bottom:1px dashed #eee;">
+              <div>
+                <div><strong>${name}</strong> <span class="pill">x${qty}</span></div>
+                <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
+              </div>
+              <div>${rarityPill(drop).outerHTML}</div>
+            </div>`;
+            })
+            .join('');
+        } else {
+          list.innerHTML = `<div class="muted">No snapshot found for this box.</div>`;
+        }
+        row.append(list);
+
         panelEl.appendChild(row);
       });
     }
