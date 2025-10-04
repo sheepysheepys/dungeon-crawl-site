@@ -49,11 +49,16 @@
     }
 
     // NEW: Total armor boxes left (sum of slots_remaining across all equipped armor)
-    const armorLeftTotal = armorRows.reduce(
-      (sum, r) => sum + Math.max(0, Number(r?.slots_remaining || 0)),
-      0
-    );
-    setText?.('armorLeftTotal', armorLeftTotal);
+    // NEW: Total armor boxes left across all armor slots
+    const armorLeftTotal = (rows || [])
+      .filter((r) => ARMOR_SLOTS.includes(r.slot))
+      .reduce(
+        (sum, r) => sum + Math.max(0, Number(r?.slots_remaining || 0)),
+        0
+      );
+
+    // write into your existing UI node
+    setText?.('silArmorCount', armorLeftTotal);
   }
 
   // ------- Render helpers -------
@@ -181,14 +186,11 @@
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         const slot = btn.getAttribute('data-unequip');
-        // Prefer local implementation; fall back to global if present
         if (typeof unequipItem === 'function') {
           await unequipItem(slot);
-        } else if (typeof window.unequipSlot === 'function') {
-          await window.unequipSlot(slot);
         } else {
-          console.warn('[equipment] no unequip handler available');
-          setText?.('msg', 'Unequip unavailable.');
+          // fallback to global if needed
+          await window.unequipSlot?.(slot);
         }
       });
     });
