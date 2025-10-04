@@ -22,49 +22,105 @@
   const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '');
 
   /* ========== Modal + Confetti ========== */
+  /* ---------- Modal + Confetti helpers (patched) ---------- */
   function ensureModal() {
-    let m = $('#lootRevealModal');
+    let m = document.querySelector('#lootRevealModal');
     if (m) return m;
-    m = el('div', 'modal-backdrop hidden');
+
+    m = document.createElement('div');
     m.id = 'lootRevealModal';
+    m.className = 'modal-backdrop hidden';
     m.innerHTML = `
-      <div class="modal">
-        <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee">
-          <h3 style="margin:0">Loot Box Opened</h3>
-          <button class="btn-ghost" id="lootRevealClose" aria-label="Close">✕</button>
-        </div>
-        <div id="lootRevealBody" class="modal-body" style="padding:12px;max-height:60vh;overflow:auto"></div>
-        <div class="modal-foot" style="display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid #eee">
-          <button class="btn" id="lootRevealOk">Close</button>
-        </div>
+    <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lootRevealTitle">
+      <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee">
+        <h3 id="lootRevealTitle" style="margin:0">Loot Box Opened</h3>
+        <button class="btn-ghost" id="lootRevealClose" aria-label="Close">✕</button>
       </div>
-    `;
+      <div id="lootRevealBody" class="modal-body" style="padding:12px;max-height:60vh;overflow:auto"></div>
+      <div class="modal-foot" style="display:flex;justify-content:flex-end;gap:8px;padding:10px 12px;border-top:1px solid #eee">
+        <button class="btn" id="lootRevealOk">Close</button>
+      </div>
+    </div>
+  `;
     document.body.appendChild(m);
 
-    // minimal styles if not present
+    // Stronger, opinionated overlay layering
     const style = document.createElement('style');
+    style.id = 'lootRevealStyles';
     style.textContent = `
-      .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999}
-      .modal{background:#fff;color:#111;min-width:320px;max-width:540px;width:90%;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden}
-      .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
-      .btn-ghost{padding:4px 8px;border:none;background:transparent;cursor:pointer}
-      .pill{display:inline-block;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
-      .rarity-common{background:#f6f6f6}
-      .rarity-uncommon{background:#e6f7ec}
-      .rarity-rare{background:#e9f0ff}
-      .rarity-epic{background:#f3e9ff}
-      .rarity-legendary{background:#fff4d6}
-      .muted{color:#666;font-size:12px}
-      .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #eee}
-      .row:last-child{border-bottom:none}
-      .list .row{padding:6px 0}
-    `;
-    document.head.appendChild(style);
+    /* backdrop should sit above confetti and page */
+    #lootRevealModal.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
+    #lootRevealModal.hidden{display:none}
+    #lootRevealModal .modal{position:relative;background:#fff;color:#111;min-width:320px;max-width:540px;width:90%;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden;z-index:10001}
+    .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer}
+    .btn-ghost{padding:4px 8px;border:none;background:transparent;cursor:pointer}
+    .pill{display:inline-block;border:1px solid #ddd;border-radius:999px;padding:2px 8px;font-size:12px;margin-left:6px}
+    .rarity-common{background:#f6f6f6}
+    .rarity-uncommon{background:#e6f7ec}
+    .rarity-rare{background:#e9f0ff}
+    .rarity-epic{background:#f3e9ff}
+    .rarity-legendary{background:#fff4d6}
+    .muted{color:#666;font-size:12px}
+    .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #eee}
+    .row:last-child{border-bottom:none}
+    /* make any confetti canvas click-through and under the modal */
+    canvas.confetti-canvas, canvas#confetti-canvas { pointer-events:none !important; z-index:9998 !important; position:fixed !important; inset:0 !important; }
+  `;
+    if (!document.querySelector('#lootRevealStyles'))
+      document.head.appendChild(style);
 
     const close = () => m.classList.add('hidden');
+
+    // Close on buttons, backdrop click, and Esc
     m.querySelector('#lootRevealClose').addEventListener('click', close);
     m.querySelector('#lootRevealOk').addEventListener('click', close);
+    m.addEventListener('click', (e) => {
+      if (e.target === m) close();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (!m.classList.contains('hidden') && e.key === 'Escape') close();
+    });
+
+    // Prevent clicks inside the modal from closing or leaking
+    m.querySelector('.modal').addEventListener('click', (e) =>
+      e.stopPropagation()
+    );
+
     return m;
+  }
+
+  // Normalize any existing confetti canvases (z-index & pointer events)
+  function normalizeConfettiCanvases() {
+    document
+      .querySelectorAll('canvas.confetti-canvas, canvas#confetti-canvas')
+      .forEach((c) => {
+        c.style.pointerEvents = 'none';
+        c.style.zIndex = '9998';
+        c.style.position = 'fixed';
+        c.style.inset = '0';
+      });
+  }
+
+  /* Tiny confetti burst */
+  async function fireConfetti() {
+    if (!window.confetti) {
+      await new Promise((res, rej) => {
+        const s = document.createElement('script');
+        s.src =
+          'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+        s.onload = res;
+        s.onerror = rej;
+        document.head.appendChild(s);
+      });
+    }
+    // One quick burst; then normalize canvas layering
+    window.confetti({
+      particleCount: 70,
+      spread: 70,
+      startVelocity: 45,
+      origin: { y: 0.3 },
+    });
+    normalizeConfettiCanvases();
   }
 
   async function fireConfetti() {
@@ -330,7 +386,7 @@
           .join('')
       : `<div class="muted">No items in this box.</div>`;
     modal.classList.remove('hidden');
-    //fireConfetti();
+    fireConfetti();
     await render(); // move Unopened → Opened + update lists/badge
   }
 
