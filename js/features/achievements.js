@@ -330,7 +330,7 @@
           .join('')
       : `<div class="muted">No items in this box.</div>`;
     modal.classList.remove('hidden');
-    fireConfetti();
+    //fireConfetti();
     await render(); // move Unopened → Opened + update lists/badge
   }
 
