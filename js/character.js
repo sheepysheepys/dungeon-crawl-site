@@ -652,41 +652,56 @@ async function doAddNameBox() {
 })();
 
 // ================= ACTIVE WEAPONS CARD =================
+// /js/character.js
 async function renderActiveWeapons() {
   const sb = window.sb;
-  const ch = AppState.character;
-  const { data } = await sb
-    .from('character_equipment')
-    .select('slot, item:items(name, damage)')
-    .eq('character_id', ch.id)
-    .in('slot', ['weapon', 'offhand']);
-
+  const chId = window.AppState?.character?.id;
   const root = document.getElementById('activeWeapons');
   const empty = document.getElementById('weaponsEmpty');
-  if (!root) return;
+  if (!sb || !chId || !root) return;
+
+  // Pull both slots
+  const { data = [], error } = await sb
+    .from('character_equipment')
+    .select('slot, item_id, item:items(name, damage)')
+    .eq('character_id', chId)
+    .in('slot', ['weapon', 'offhand']);
+
+  if (error) {
+    console.warn('[weapons] query error', error);
+    return;
+  }
+
+  // Keep ONLY equipped rows (item_id present)
+  const rows = (data || []).filter((r) => !!r.item_id);
+
+  // Sort so WEAPON is always above OFFHAND
+  const order = { weapon: 0, offhand: 1 };
+  rows.sort((a, b) => (order[a.slot] ?? 99) - (order[b.slot] ?? 99));
 
   root.innerHTML = '';
-  const rows = data || [];
+
   if (!rows.length) {
     if (empty) empty.style.display = '';
     return;
   }
   if (empty) empty.style.display = 'none';
 
-  rows.forEach((r) => {
-    const row = document.createElement('div');
-    row.className = 'row';
-    row.innerHTML = `
+  // Render compact rows
+  for (const r of rows) {
+    const div = document.createElement('div');
+    div.className = 'row';
+    div.innerHTML = `
       <div>${(r.slot || '').toUpperCase()}: ${r.item?.name || '—'}
         <span class="muted mono">${r.item?.damage ?? ''}</span>
       </div>
       <div class="spacer"></div>
       <button class="btn-tiny" data-unequip-slot="${r.slot}">Unequip</button>
-
     `;
-    root.appendChild(row);
-  });
+    root.appendChild(div);
+  }
 }
+window.renderActiveWeapons = renderActiveWeapons; // ensure global so equipment.js can call it
 
 document.addEventListener('click', async (e) => {
   const b = e.target.closest('[data-unequip-slot]');
