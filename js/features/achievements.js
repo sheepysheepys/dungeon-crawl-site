@@ -63,6 +63,29 @@
       #page-awards .loot-chip .rar  { margin-left:4px }
       #page-awards .show-toggle { margin-top:6px }
       #page-awards .show-toggle .btn { font-size:12px; padding:4px 8px }
+         #page-awards .show-toggle { margin-top:6px }
+   #page-awards .show-toggle .btn { font-size:12px; padding:4px 8px }
+
++  /* Opened rows: compact by default with one-line summary */
++  #page-awards .expandable { cursor: pointer; }
++  #page-awards .summary-line {
++    margin-top: 4px;
++    font-size: 12px;
++    color: #a6adbb;
++    white-space: nowrap;
++    overflow: hidden;
++    text-overflow: ellipsis;
++  }
++  #page-awards .expandable .details { display: none; margin-top: 6px; }
++  #page-awards .expandable.open .details { display: block; }
++  #page-awards .chev {
++    display:inline-block; width: 0; height: 0; margin-left: 6px;
++    border-style: solid; border-width: 5px 0 5px 7px;
++    border-color: transparent transparent transparent currentColor;
++    transform: rotate(0deg); transition: transform .15s ease;
++  }
++  #page-awards .expandable.open .chev { transform: rotate(90deg); }
+
     `;
     document.head.appendChild(s);
   }
@@ -283,6 +306,7 @@
     }
 
     // Opened (condensed chips)
+    // Opened (summary line + expandable details)
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
@@ -292,63 +316,75 @@
             const revealed = Array.isArray(b.contents?.revealed)
               ? b.contents.revealed
               : [];
-            const MAX = 8;
-            const chips = revealed.map((it) => {
-              const name =
-                (it.item_name ?? `Item ${it.item_id}`) +
-                (it.ability?.name ? ` (${it.ability.name})` : '');
-              const qty = it.qty ?? 1;
-              const drop = it.drop_rarity ?? 'common';
-              return `
-              <span class="loot-chip">
-                <span class="name">${String(name).replace(/[<>&]/g, '')}</span>
-                <span class="qty pill">x${qty}</span>
-                <span class="pill rar rarity-${drop}">${drop}</span>
-              </span>
-            `;
-            });
-            const chipsHtml = chips.slice(0, MAX).join('');
-            const hiddenHtml = chips.slice(MAX).join('');
-            const hasMore = chips.length > MAX;
-            const id = `more-${b.id}`;
-            return `
-            <div class="row" style="flex-direction:column; align-items:stretch">
-              <div class="row" style="justify-content:space-between; border-bottom:none; padding:0 0 6px 0">
-                <div>
-                  <strong>${(
-                    b.label ||
-                    `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-                  ).replace(/[<>&]/g, '')}</strong>
-                  <span class="pill">${b.rarity}</span>
-                </div>
-                <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
-              </div>
 
-              <div class="loot-chips">${chipsHtml}${
-              hasMore
-                ? `<span id="${id}" class="loot-chips hidden">${hiddenHtml}</span>`
-                : ``
-            }</div>
-              ${
-                hasMore
-                  ? `<div class="show-toggle"><button class="btn" data-toggle="${id}" data-opentext="Show all (${chips.length})" data-closetext="Hide">Show all (${chips.length})</button></div>`
-                  : ``
-              }
+            // Build chips + a single-line summary like: "Torch x2 • Copper Coins x14 • Rune Shard x1"
+            const chips = revealed
+              .map((it) => {
+                const name =
+                  (it.item_name ?? `Item ${it.item_id}`) +
+                  (it.ability?.name ? ` (${it.ability.name})` : '');
+                const qty = it.qty ?? 1;
+                const drop = it.drop_rarity ?? 'common';
+                return `
+          <span class="loot-chip">
+            <span class="name">${String(name).replace(/[<>&]/g, '')}</span>
+            <span class="qty pill">x${qty}</span>
+            <span class="pill rar rarity-${drop}">${drop}</span>
+          </span>
+        `;
+              })
+              .join('');
+
+            const summary = revealed
+              .map((it) => {
+                const name =
+                  (it.item_name ?? `Item ${it.item_id}`) +
+                  (it.ability?.name ? ` (${it.ability.name})` : '');
+                const qty = it.qty ?? 1;
+                return `${name} x${qty}`;
+              })
+              .join(' • ');
+
+            const boxTitle = (
+              b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
+            ).replace(/[<>&]/g, '');
+            const rowId = `opened-${b.id}`;
+
+            return `
+        <div id="${rowId}" class="row expandable" data-expand="${rowId}" role="button" aria-expanded="false"
+             style="flex-direction:column; align-items:stretch">
+          <div class="row" style="justify-content:space-between; border-bottom:none; padding:0 0 2px 0">
+            <div>
+              <strong>${boxTitle}</strong>
+              <span class="pill">${b.rarity}</span>
+              <span class="chev" aria-hidden="true"></span>
             </div>
-          `;
+            <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
+          </div>
+
+          <!-- One-line summary -->
+          <div class="summary-line">${summary || '—'}</div>
+
+          <!-- Full details (chips), hidden until expanded -->
+          <div class="details">
+            <div class="loot-chips">${
+              chips ||
+              `<span class="muted">No snapshot found for this box.</span>`
+            }</div>
+          </div>
+        </div>
+      `;
           })
           .join('');
 
-        // toggles
-        openedWrap.querySelectorAll('[data-toggle]').forEach((btn) => {
-          btn.addEventListener('click', () => {
-            const target = document.getElementById(
-              btn.getAttribute('data-toggle')
-            );
-            const openText = btn.getAttribute('data-opentext');
-            const closeText = btn.getAttribute('data-closetext');
-            const isHidden = target.classList.toggle('hidden');
-            btn.textContent = isHidden ? openText : closeText;
+        // wire expand/collapse (click row or chevron area)
+        openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
+          row.addEventListener('click', (e) => {
+            // ignore clicks on links/buttons if you ever add them
+            if (e.target.closest('button,a')) return;
+            const open = !row.classList.contains('open');
+            row.classList.toggle('open', open);
+            row.setAttribute('aria-expanded', open ? 'true' : 'false');
           });
         });
       }
