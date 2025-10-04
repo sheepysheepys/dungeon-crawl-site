@@ -15,20 +15,19 @@
     return true;
   }
 
+  /* ---------- Confetti (tiny, lazy-loaded) ---------- */
   async function fireConfetti() {
-    // Load once
     if (!window.confetti) {
-      await new Promise((resolve, reject) => {
+      await new Promise((res, rej) => {
         const s = document.createElement('script');
         s.src =
           'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
-        s.onload = resolve;
-        s.onerror = reject;
+        s.onload = res;
+        s.onerror = rej;
         document.head.appendChild(s);
       });
     }
-    // A quick party burst
-    const end = Date.now() + 500; // 0.5s
+    const end = Date.now() + 500;
     (function frame() {
       window.confetti({
         particleCount: 60,
@@ -36,7 +35,7 @@
         startVelocity: 45,
         scalar: 0.9,
         ticks: 120,
-        origin: { y: 0.3 }, // top-ish
+        origin: { y: 0.3 },
       });
       if (Date.now() < end) requestAnimationFrame(frame);
     })();
@@ -58,10 +57,8 @@
         <div class="modal-foot">
           <button class="btn" id="lootOkBtn">Close</button>
         </div>
-      </div>
-    `;
+      </div>`;
     document.body.appendChild(m);
-
     const style = document.createElement('style');
     style.textContent = `
       .modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:9999}
@@ -83,10 +80,9 @@
       .muted{color:#666;font-size:12px}
     `;
     document.head.appendChild(style);
-
     const close = () => m.classList.add('hidden');
-    $('#lootCloseBtn').addEventListener('click', close);
-    $('#lootOkBtn').addEventListener('click', close);
+    m.querySelector('#lootCloseBtn').addEventListener('click', close);
+    m.querySelector('#lootOkBtn').addEventListener('click', close);
     return m;
   }
 
@@ -107,31 +103,15 @@
         .from('loot_boxes')
         .select(
           'id, character_id, rarity, status, created_at, opened_at, contents'
-        ) // <— contents added
+        )
         .eq('character_id', charId)
         .order('created_at', { ascending: false }),
     ]);
-    return {
-      achievements: ach.data || [],
-      boxes: boxes.data || [],
-    };
+    return { achievements: ach.data || [], boxes: boxes.data || [] };
   }
 
-  function addToInventory(name, qty) {
-    const inv = window.App?.Logic?.Inventory;
-    if (inv && typeof inv.addItem === 'function') {
-      inv.addItem({ name, qty });
-    } else {
-      window.dispatchEvent(
-        new CustomEvent('inventory:add', { detail: { name, qty } })
-      );
-    }
-  }
-
-  /* ---------- OPEN: instant RPC + modal reveal ---------- */
+  /* ---------- OPEN: instant RPC + modal reveal (only on click) ---------- */
   async function openBox(box) {
-    // Safe-area check removed; we always allow opening
-
     const { data, error } = await supa.rpc('rpc_open_seeded_loot_box', {
       p_loot_box_id: box.id,
       p_auto_grant: true,
@@ -142,7 +122,6 @@
       if (msg) msg.textContent = 'Failed to open loot box.';
       return;
     }
-
     const items = Array.isArray(data) ? data : [];
     const modal = ensureModal();
     const body = $('#lootModalBody');
@@ -163,14 +142,13 @@
                 <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
               </div>
               <div>${rarityPill(drop).outerHTML}</div>
-            </div>
-          `;
+            </div>`;
           })
           .join('')
       : `<div class="muted">No items in this box.</div>`;
     modal.classList.remove('hidden');
-    fireConfetti(); // 🎉
-    await render(); // move box from Unopened → Opened lists
+    fireConfetti();
+    await render(); // move Unopened → Opened
   }
 
   /* ---------- UI helpers ---------- */
@@ -223,7 +201,6 @@
   function renderAchievementsFeed(feedEl, achievements, boxes, filter) {
     feedEl.innerHTML = '';
     const activity = [];
-
     achievements.forEach((a) => {
       activity.push({
         type: 'achievement',
@@ -242,7 +219,6 @@
         })(),
       });
     });
-
     boxes.forEach((b) => {
       activity.push({
         type: 'box-granted',
@@ -281,7 +257,6 @@
         });
       }
     });
-
     const filtered = activity.filter((item) => {
       switch (filter) {
         case 'achievements':
@@ -296,9 +271,7 @@
           return true;
       }
     });
-
     filtered.sort((a, b) => new Date(b.ts) - new Date(a.ts));
-
     if (!filtered.length) {
       const none = el('div', 'muted');
       none.textContent = 'No activity yet.';
@@ -313,11 +286,9 @@
     const unopened = boxes.filter((b) => b.status === 'unopened');
     const opened = boxes.filter((b) => b.status === 'opened');
 
-    // Unopened
     const h1 = el('h3');
     h1.textContent = 'Unopened Loot Boxes';
     panelEl.appendChild(h1);
-
     if (!unopened.length) {
       const none = el('div', 'muted');
       none.textContent = 'No unopened boxes.';
@@ -334,28 +305,24 @@
           el('span', 'stamp')
         );
         left.querySelector('.stamp').textContent = fmt(b.created_at);
-
         const right = el('div', 'row');
         const btn = el('button', 'btn-accent');
         btn.textContent = 'Open';
         btn.addEventListener('click', async () => {
           btn.disabled = true;
-          await openBox(b); // will pop modal + move to opened
+          await openBox(b);
           btn.disabled = false;
         });
         right.append(btn);
-
         row.append(left, right);
         panelEl.appendChild(row);
       });
     }
 
-    // Opened + contents
     const h2 = el('h3');
     h2.textContent = 'Opened Boxes';
     h2.style.marginTop = '10px';
     panelEl.appendChild(h2);
-
     if (!opened.length) {
       const none = el('div', 'muted');
       none.textContent = 'No opened boxes yet.';
@@ -365,8 +332,6 @@
         const row = el('div', 'row');
         row.style.flexDirection = 'column';
         row.style.alignItems = 'stretch';
-
-        // header
         const head = el('div', 'row');
         head.style.justifyContent = 'space-between';
         const left = el('div');
@@ -381,8 +346,6 @@
         );
         head.append(left);
         row.append(head);
-
-        // revealed items (if any)
         const rev = b.contents?.revealed;
         const list = el('div');
         list.className = 'list';
@@ -398,33 +361,114 @@
                 ? ` • Ability: ${it.ability.name}`
                 : '';
               return `
-            <div class="row" style="padding:4px 0; border-bottom:1px dashed #eee;">
-              <div>
-                <div><strong>${name}</strong> <span class="pill">x${qty}</span></div>
-                <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
-              </div>
-              <div>${rarityPill(drop).outerHTML}</div>
-            </div>`;
+              <div class="row" style="padding:4px 0; border-bottom:1px dashed #eee;">
+                <div>
+                  <div><strong>${name}</strong> <span class="pill">x${qty}</span></div>
+                  <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
+                </div>
+                <div>${rarityPill(drop).outerHTML}</div>
+              </div>`;
             })
             .join('');
         } else {
           list.innerHTML = `<div class="muted">No snapshot found for this box.</div>`;
         }
         row.append(list);
-
         panelEl.appendChild(row);
       });
     }
   }
 
+  /* ---------- Realtime: re-render when boxes are granted or opened ---------- */
+  let rtSubV2 = null;
+  let rtSubV1 = null;
+  let pollTimer = null;
+
+  function unsubscribeRealtime() {
+    try {
+      rtSubV2?.unsubscribe();
+    } catch {}
+    try {
+      rtSubV1?.unsubscribe?.();
+    } catch {}
+    rtSubV2 = null;
+    rtSubV1 = null;
+  }
+
+  function subscribe(characterId) {
+    if (!characterId) return;
+    unsubscribeRealtime();
+
+    // Clear any old poller
+    if (pollTimer) {
+      clearInterval(pollTimer);
+      pollTimer = null;
+    }
+
+    // v2 client: supabase.channel(...)
+    if (typeof supa?.channel === 'function') {
+      rtSubV2 = supa
+        .channel('loot_boxes:' + characterId)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'loot_boxes',
+            filter: `character_id=eq.${characterId}`,
+          },
+          () => {
+            console.log('[rt] INSERT loot_boxes → render');
+            render();
+          }
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'loot_boxes',
+            filter: `character_id=eq.${characterId}`,
+          },
+          () => {
+            console.log('[rt] UPDATE loot_boxes → render');
+            render();
+          }
+        )
+        .subscribe((status) => console.log('[rt] channel status:', status));
+    }
+    // v1 client: supabase.from(...).on(...).subscribe()
+    else if (typeof supa?.from === 'function') {
+      rtSubV1 = supa
+        .from(`loot_boxes:character_id=eq.${characterId}`)
+        .on('INSERT', () => {
+          console.log('[rt/v1] INSERT loot_boxes → render');
+          render();
+        })
+        .on('UPDATE', () => {
+          console.log('[rt/v1] UPDATE loot_boxes → render');
+          render();
+        })
+        .subscribe();
+    } else {
+      console.warn('[rt] No realtime API found on supabase client.');
+    }
+
+    // Fallback poller (safety net): refresh every 5s
+    pollTimer = setInterval(() => {
+      console.log('[poll] refresh loot_boxes');
+      render();
+    }, 5000);
+  }
+
   async function render() {
     const char = window.AppState?.character;
     if (!char?.id) return;
+
     const { card, controls, feed, panel } = ensureContainers();
     if (!card) return;
 
     const { achievements, boxes } = await fetchData(char.id);
-
     const select = card.querySelector('#achView');
     const filter = select ? select.value : 'all';
 
@@ -435,6 +479,9 @@
       select._bound = true;
       select.addEventListener('change', () => render());
     }
+
+    // (re)attach realtime after first successful render
+    subscribe(char.id);
   }
 
   document.addEventListener('DOMContentLoaded', render);
