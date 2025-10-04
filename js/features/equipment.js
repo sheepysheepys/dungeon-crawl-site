@@ -1,11 +1,10 @@
+// /js/features/equipment.js
 (function (App) {
   function sb() {
     return window.sb;
   }
 
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
-  // const OTHER_SLOTS = ['weapon', 'offhand', 'accessory1', 'accessory2']; // keep your slots
-  const ALL_SLOTS = [...OTHER_SLOTS, ...ARMOR_SLOTS];
 
   // ------- Data -------
   async function queryEquipment(characterId) {
@@ -73,9 +72,9 @@
       title = `${slot.toUpperCase()}: <span class="muted">Empty</span>`;
     }
 
-    // Button
+    // Button (compact)
     const btn = row?.item_id
-      ? `<button class="btn-bad" data-unequip="${slot}">Unequip</button>`
+      ? `<button class="btn-tiny" data-unequip="${slot}">Unequip</button>`
       : '';
 
     // Protection = armor_left + (exo_left ? 1 : 0)
@@ -102,51 +101,9 @@
     `;
   }
 
-  function otherSlotCard(slot, row) {
-    if (!row) {
-      return `
-        <div class="slotCard">
-          <div class="row">
-            <div>${slot.toUpperCase()}: <span class="muted">Empty</span></div>
-          </div>
-        </div>
-      `;
-    }
-    const btn = row?.item_id
-      ? `<button class="btn-bad" data-unequip="${slot}">Unequip</button>`
-      : '';
-
-    const dmg = row.item?.damage
-      ? `<div class="mono muted tinybars"><span class="label">Damage:</span> ${row.item.damage}</div>`
-      : '';
-
-    return `
-      <div class="slotCard">
-        <div class="row">
-          <div>${slot.toUpperCase()}: ${row.item?.name || 'Unknown'}</div>
-          <div class="spacer"></div>
-          ${btn}
-        </div>
-        ${dmg}
-      </div>
-    `;
-  }
-
-  // ------- Slot persistence helper -------
-  async function clearEquipmentSlot(characterId, slot) {
-    const client = sb();
-    if (!client) return;
-    const { error } = await client
-      .from('character_equipment')
-      .delete()
-      .eq('character_id', characterId)
-      .eq('slot', slot);
-    if (error) console.warn('[equipment] clear slot error', error);
-  }
-
   // ------- Unequip flow (return to inventory, keep EXO) -------
   async function unequipItem(slot) {
-    const client = window.sb;
+    const client = sb();
     const ch = window.AppState?.character;
     if (!client || !ch?.id || !slot) return;
 
@@ -187,14 +144,11 @@
     setText?.('msg', `Unequipped from ${slot} (exo preserved)`);
   }
 
-  // ------- Equipment tab rendering -------
+  // ------- Equipment tab rendering (ARMOR ONLY) -------
   function renderEquipmentList(rows) {
     const root = document.querySelector('#equipmentList');
     const empty = document.querySelector('#equipmentEmpty');
     if (!root) return;
-
-    // Only care about armor slots here
-    const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
     // Build lookup just for armor
     const bySlot = Object.fromEntries(ARMOR_SLOTS.map((s) => [s, null]));
@@ -204,15 +158,14 @@
 
     // Armor section only
     const armorSection = `
-    <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
-    ${ARMOR_SLOTS.map((s) => armorSlotCard(s, bySlot[s])).join('')}
-  `;
+      <h4 class="muted" style="margin: 6px 0 8px 0">Armor</h4>
+      ${ARMOR_SLOTS.map((s) => armorSlotCard(s, bySlot[s])).join('')}
+    `;
 
     root.innerHTML = armorSection;
 
     if (empty) {
-      // "any armor rows" = either an equipped item for a slot OR an existing row for that slot
-      const anyArmor = ARMOR_SLOTS.some((s) => !!bySlot[s]);
+      const anyArmor = ARMOR_SLOTS.some((s) => bySlot[s] != null);
       empty.textContent = anyArmor ? '' : 'No armor equipped.';
       empty.style.display = anyArmor ? 'none' : '';
     }
@@ -222,7 +175,7 @@
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         const slot = btn.getAttribute('data-unequip');
-        await window.unequipSlot?.(slot);
+        await window.unequipSlot?.(slot); // uses the global handler in character.js
       });
     });
   }
