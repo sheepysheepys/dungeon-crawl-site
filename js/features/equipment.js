@@ -1,4 +1,3 @@
-// /js/features/equipment.js
 (function (App) {
   function sb() {
     return window.sb;
@@ -25,13 +24,13 @@
   function updateArmorTopline(rows) {
     const armorRows = (rows || []).filter((r) => ARMOR_SLOTS.includes(r.slot));
 
-    // 1) Exo count
+    // EXO count (how many armor slots still have exo_left)
     let exoOn = armorRows.reduce(
       (n, r) => n + (Number(r?.exo_left ?? 0) > 0 ? 1 : 0),
       0
     );
 
-    // Fallback: use character.exoskin_slots_remaining when rows are missing or zero
+    // Fallback: character.exoskin_slots_remaining if rows missing/zero
     if (!armorRows.length || exoOn === 0) {
       const ch = window.AppState?.character;
       const fallback = Number(ch?.exoskin_slots_remaining ?? 0);
@@ -42,14 +41,19 @@
     setText?.('exoOn', exoOn);
     setText?.('strippedPieces', stripped);
 
-    // 2) Ticks fill using your CSS (.filled)
+    // Fill the 5 EXO ticks
     const track = document.querySelector('#armorCard .armor-track');
     if (track) {
       const ticks = Array.from(track.querySelectorAll('.tick')).slice(0, 5);
-      ticks.forEach((el, i) => {
-        el.classList.toggle('filled', i < exoOn);
-      });
+      ticks.forEach((el, i) => el.classList.toggle('filled', i < exoOn));
     }
+
+    // NEW: Total armor boxes left (sum of slots_remaining across all equipped armor)
+    const armorLeftTotal = armorRows.reduce(
+      (sum, r) => sum + Math.max(0, Number(r?.slots_remaining || 0)),
+      0
+    );
+    setText?.('armorLeftTotal', armorLeftTotal);
   }
 
   // ------- Render helpers -------
@@ -77,28 +81,30 @@
       ? `<button class="btn-tiny" data-unequip="${slot}">Unequip</button>`
       : '';
 
-    // Protection = armor_left + (exo_left ? 1 : 0)
-    const prot = protectionBoxes(row);
+    // Armor left (boxes) — EXO intentionally NOT shown here
+    const armorBoxes = row ? Math.max(0, Number(row.slots_remaining || 0)) : 0;
+    const armorGlyphs = armorBoxes > 0 ? '■'.repeat(armorBoxes) : '—';
 
-    // Armor meta
-    const meta =
+    // Item’s total armor capacity (from item definition), optional display
+    const itemArmorCap =
       row?.item?.armor_value != null && Number(row.item.armor_value) > 0
-        ? `<div class="mono muted tinybars"><span class="label">Armor:</span> ${row.item.armor_value}</div>`
+        ? `<div class="mono muted tinybars"><span class="label">Armor cap:</span> ${row.item.armor_value}</div>`
         : '';
 
     return `
-      <div class="slotCard">
-        <div class="row">
-          <div>${title}</div>
-          <div class="spacer"></div>
-          ${btn}
-        </div>
-        <div class="mono muted tinybars">
-          <span class="label">Protection:</span> ${prot}
-        </div>
-        ${meta}
+    <div class="slotCard">
+      <div class="row">
+        <div>${title}</div>
+        <div class="spacer"></div>
+        ${btn}
       </div>
-    `;
+
+      <div class="mono muted tinybars">
+        <span class="label">Armor (left):</span> ${armorGlyphs}
+      </div>
+      ${itemArmorCap}
+    </div>
+  `;
   }
 
   // ------- Unequip flow (return to inventory, keep EXO) -------
@@ -175,7 +181,15 @@
       btn.addEventListener('click', async (e) => {
         e.preventDefault();
         const slot = btn.getAttribute('data-unequip');
-        await window.unequipSlot?.(slot); // uses the global handler in character.js
+        // Prefer local implementation; fall back to global if present
+        if (typeof unequipItem === 'function') {
+          await unequipItem(slot);
+        } else if (typeof window.unequipSlot === 'function') {
+          await window.unequipSlot(slot);
+        } else {
+          console.warn('[equipment] no unequip handler available');
+          setText?.('msg', 'Unequip unavailable.');
+        }
       });
     });
   }
