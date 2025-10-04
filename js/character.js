@@ -8,6 +8,52 @@ console.log('[character] start', {
 });
 
 // ================= STATE & UTIL =================
+// ---- Optional wear-cache helpers (safe no-ops if table/policy missing) ----
+async function readWearRow(sb, chId, itemId) {
+  try {
+    const { data, error } = await sb
+      .from('character_item_wear')
+      .select('armor_left')
+      .eq('character_id', chId)
+      .eq('item_id', itemId)
+      .maybeSingle();
+    if (error) throw error;
+    return Number.isFinite(data?.armor_left)
+      ? Math.max(0, data.armor_left)
+      : null;
+  } catch (e) {
+    console.warn('[wear] read skipped', e?.code || e?.message || e);
+    return null;
+  }
+}
+async function upsertWearRow(sb, chId, itemId, armorLeft) {
+  try {
+    const { error } = await sb.from('character_item_wear').upsert(
+      {
+        character_id: chId,
+        item_id: itemId,
+        armor_left: Math.max(0, Number(armorLeft || 0)),
+      },
+      { onConflict: 'character_id,item_id' }
+    );
+    if (error) throw error;
+  } catch (e) {
+    console.warn('[wear] upsert skipped', e?.code || e?.message || e);
+  }
+}
+async function deleteWearRow(sb, chId, itemId) {
+  try {
+    const { error } = await sb
+      .from('character_item_wear')
+      .delete()
+      .eq('character_id', chId)
+      .eq('item_id', itemId);
+    if (error) throw error;
+  } catch (e) {
+    console.warn('[wear] delete skipped', e?.code || e?.message || e);
+  }
+}
+
 function setCharacter(ch) {
   window.AppState = window.AppState || {};
   window.AppState.character = ch;
@@ -352,7 +398,6 @@ async function handleAbilityOnEquip(item, slot) {
   });
 }
 
-// Put near the top of character.js if you want to change behavior:
 const EQUIP_BEHAVIOR = 'swap'; // 'swap' | 'fail'
 
 async function equipFromInventory(lineId) {
@@ -364,7 +409,7 @@ async function equipFromInventory(lineId) {
   const { data: line, error: qErr } = await sb
     .from('character_items')
     .select(
-      'id, item_id, qty, item:items(id, name, slot, armor_value, damage, ability_id)'
+      'id, item_id, qty, item:items(id,name,slot,armor_value,damage,ability_id)'
     )
     .eq('id', lineId)
     .maybeSingle();
@@ -388,7 +433,6 @@ async function equipFromInventory(lineId) {
       .eq('character_id', chId)
       .eq('slot', 'weapon')
       .maybeSingle();
-
     if (wepRow?.item_id) {
       const { data: offRow } = await sb
         .from('character_equipment')
@@ -396,15 +440,11 @@ async function equipFromInventory(lineId) {
         .eq('character_id', chId)
         .eq('slot', 'offhand')
         .maybeSingle();
-
-      if (!offRow?.item_id) {
-        targetSlot = 'offhand';
-      }
-      // else keep targetSlot='weapon' and handle by swap/fail below
+      if (!offRow?.item_id) targetSlot = 'offhand';
     }
   }
 
-  // 3) Read the current equipment row for targetSlot (to preserve exo_left)
+  // 3) Read current slot row (to preserve exo & get fallback wear)
   const { data: curRow } = await sb
     .from('character_equipment')
     .select('id, item_id, exo_left, slots_remaining, slot')
@@ -418,41 +458,37 @@ async function equipFromInventory(lineId) {
       setText?.('msg', `Cannot equip: ${targetSlot} is occupied.`);
       return;
     }
-    // swap: return old item to inventory
     await App.Logic.inventory.addById(sb, chId, curRow.item_id, +1);
   }
 
   // 5) Decrement inventory for the new item
-  const nextQty = Math.max(0, Number(line.qty || 1) + -1);
+  const nextQty = Math.max(0, Number(line.qty || 1) - 1);
   if (nextQty === 0) {
     await sb.from('character_items').delete().eq('id', line.id);
   } else {
     await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
   }
 
-  // 6) Restore cached wear if present (so re-equip doesn't refill armor)
-  let wearLeft = null;
-  try {
-    const { data: wearRow } = await sb
-      .from('character_item_wear')
-      .select('armor_left')
-      .eq('character_id', chId)
-      .eq('item_id', item.id)
-      .maybeSingle();
-    if (Number.isFinite(wearRow?.armor_left)) {
-      wearLeft = Math.max(0, wearRow.armor_left);
-    }
-  } catch {}
-
-  // slots_remaining: for armor = wear cache or full; for weapons = 0
+  // 6) Determine armor slots remaining with robust fallback
   const armorCap = Number(item?.armor_value ?? 0) || 0;
-  const slotsRemainingToUse = isArmorSlot
-    ? wearLeft != null
-      ? wearLeft
-      : armorCap
-    : 0;
+  let slotsRemainingToUse = 0;
+  if (isArmorSlot) {
+    const wearLeft = await readWearRow(sb, chId, item.id); // (1) prefer cache
+    if (wearLeft != null) {
+      slotsRemainingToUse = wearLeft;
+    } else if (curRow && Number.isFinite(curRow.slots_remaining)) {
+      // (2) fallback: previous slot value
+      // If you want to treat "different item in same slot" as reset, comment next line and set to armorCap instead
+      slotsRemainingToUse = Math.min(
+        armorCap,
+        Math.max(0, Number(curRow.slots_remaining))
+      );
+    } else {
+      slotsRemainingToUse = armorCap; // (3) new slot, full cap
+    }
+  }
 
-  // 7) Upsert the equipment row (preserve exo_left if row already exists)
+  // 7) Write equipment row (preserve exo_left if row exists)
   if (curRow?.id) {
     await sb
       .from('character_equipment')
@@ -464,25 +500,21 @@ async function equipFromInventory(lineId) {
       slot: targetSlot,
       item_id: item.id,
       slots_remaining: slotsRemainingToUse,
-      exo_left: isArmorSlot ? 1 : 0, // armor gets an exo stub if none existed
+      exo_left: isArmorSlot ? 1 : 0, // seed exo row for armor
     });
   }
 
-  // 8) (Optional) abilities on equip
+  // 8) Optional abilities on equip
   try {
     await handleAbilityOnEquip?.(item, targetSlot);
   } catch (e) {
-    console.warn('[equip] handleAbilityOnEquip failed', e);
+    console.warn('[equip] ability hook', e);
   }
 
-  // 9) Clear wear cache for this item (one-time use)
-  await sb
-    .from('character_item_wear')
-    .delete()
-    .eq('character_id', chId)
-    .eq('item_id', item.id);
+  // 9) Clear wear cache (non-fatal)
+  await deleteWearRow(sb, chId, item.id);
 
-  // 10) Repaint everything
+  // 10) Repaint
   await App?.Features?.equipment?.load?.(chId);
   await App?.Features?.equipment?.computeAndRenderArmor?.(chId);
   await App?.Features?.inventory?.load?.(chId, {

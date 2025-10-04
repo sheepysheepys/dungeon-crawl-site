@@ -5,6 +5,24 @@
 
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
+  // Optional safe wear upsert (won't break if table/policy missing)
+  async function upsertWearSafe(client, chId, itemId, armorLeft) {
+    try {
+      await client
+        .from('character_item_wear')
+        .upsert(
+          {
+            character_id: chId,
+            item_id: itemId,
+            armor_left: Math.max(0, Number(armorLeft || 0)),
+          },
+          { onConflict: 'character_id,item_id' }
+        );
+    } catch (e) {
+      console.warn('[wear] upsert skipped', e?.code || e?.message || e);
+    }
+  }
+
   // ------- Data -------
   async function queryEquipment(characterId) {
     const client = sb();
@@ -15,7 +33,6 @@
         'id, slot, item_id, slots_remaining, exo_left, item:items(id, name, slot, armor_value, damage)'
       )
       .eq('character_id', characterId);
-
     if (error) console.warn('[equipment] query error', error);
     return data || [];
   }
@@ -151,22 +168,9 @@
       return;
     }
 
-    // 2) STASH wear (so re-equip doesn't refill)
+    // 2) STASH wear (so re-equip doesn't refill) — safe/no-op if table missing
     const armorLeftAtUnequip = Math.max(0, Number(eq?.slots_remaining || 0));
-    try {
-      await client
-        .from('character_item_wear')
-        .upsert(
-          {
-            character_id: ch.id,
-            item_id: eq.item_id,
-            armor_left: armorLeftAtUnequip,
-          },
-          { onConflict: 'character_id,item_id' }
-        );
-    } catch (wearErr) {
-      console.warn('[unequip] wear upsert failed (non-fatal)', wearErr);
-    }
+    await upsertWearSafe(client, ch.id, eq.item_id, armorLeftAtUnequip);
 
     // 3) +1 back to inventory (update-or-insert)
     const { data: existing, error: exErr } = await client
@@ -204,10 +208,10 @@
       }
     }
 
-    // 4) Clear item but KEEP exo_left (so topline exo remains)
+    // 4) Clear the equipped item but DO NOT zero slots_remaining (preserve fallback)
     const { error: clrErr } = await client
       .from('character_equipment')
-      .update({ item_id: null, slots_remaining: 0 })
+      .update({ item_id: null }) // keep slots_remaining as-is
       .eq('id', eq.id);
     if (clrErr) {
       console.warn('[unequip] clear item failed', clrErr);
