@@ -15,12 +15,9 @@
     if (msgEl) msgEl.textContent = t || '';
   };
 
-  // === set this to match your loot_boxes column name ===
-  // If your table uses 'rarity', leave as 'rarity'.
-  // If your table uses 'box_type', change this to 'box_type'.
-  const LOOT_RARITY_FIELD = 'rarity';
-
+  // ----------------------------
   // Load characters into the dropdown
+  // ----------------------------
   async function loadChars() {
     try {
       const { data, error } = await supa
@@ -50,7 +47,9 @@
     }
   }
 
-  // Insert into achievements (id, title, description, awarded_at, character_id)
+  // ----------------------------
+  // Grant an achievement
+  // ----------------------------
   async function grantAchievement() {
     try {
       const character_id = $('#dmChar')?.value;
@@ -83,35 +82,69 @@
     }
   }
 
-  // Insert a loot box for the selected character
+  // ----------------------------
+  // Grant a loot box (insert + pre-seed via RPC)
+  //   Uses server-side function:
+  //   rpc_give_and_seed_loot_box(p_character_id uuid, p_box_rarity loot_rarity) -> uuid
+  // ----------------------------
   async function grantBox() {
     try {
       const character_id = $('#dmChar')?.value;
-      const rarity = $('#dmRarity')?.value;
+      const rarity = $('#dmRarity')?.value; // 'common' | 'uncommon' | 'rare' | 'epic' | 'legendary'
 
       if (!character_id) {
         setMsg('Pick a character first.');
         return;
       }
+      if (!rarity) {
+        setMsg('Pick a box rarity.');
+        return;
+      }
 
-      const payload = { character_id, status: 'pending' };
-      payload[LOOT_RARITY_FIELD] = rarity; // 'rarity' or 'box_type'
+      // Button UX
+      const btn = $('#btnGrantBox');
+      const prev = btn?.textContent;
+      if (btn) {
+        btn.disabled = true;
+        btn.textContent = 'Granting...';
+      }
 
-      const { error } = await supa.from('loot_boxes').insert(payload);
+      // Call RPC that creates the row and pre-rolls/freeze contents
+      const { data: newBoxId, error } = await supa.rpc(
+        'rpc_give_and_seed_loot_box',
+        {
+          p_character_id: character_id,
+          p_box_rarity: rarity,
+        }
+      );
       if (error) throw error;
 
       setMsg(`Loot box (${rarity}) granted.`);
+      // If your player "awards" panel doesn't auto-refresh from realtime,
+      // you can force refresh here:
+      // window.App?.Features?.awards?.render?.(character_id);
+
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = prev || 'Grant Loot Box';
+      }
     } catch (e) {
       console.error('[dm] grantBox', e);
       setMsg('Error: ' + (e?.message || e));
+      const btn = $('#btnGrantBox');
+      if (btn) {
+        btn.disabled = false;
+        btn.textContent = 'Grant Loot Box';
+      }
     }
   }
 
+  // ----------------------------
+  // Wire up UI
+  // ----------------------------
   window.addEventListener('load', () => {
-    document
-      .getElementById('btnGrantAch')
-      ?.addEventListener('click', grantAchievement);
-    document.getElementById('btnGrantBox')?.addEventListener('click', grantBox);
+    $('#btnGrantAch')?.addEventListener('click', grantAchievement);
+    $('#btnGrantBox')?.addEventListener('click', grantBox);
     loadChars();
   });
 })();
