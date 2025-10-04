@@ -319,7 +319,7 @@
       }
     }
 
-    // Opened (summary under name, toggle for details)
+    // Opened (summary under name, no right-side summary; expandable details)
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
@@ -333,7 +333,7 @@
               b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
             ).replace(/[<>&]/g, '');
 
-            // summary line: "Sword x1 • Boots x1 • Gem x2"
+            // one-line summary only (under the title)
             const summary =
               revealed
                 .map((it) => {
@@ -343,7 +343,7 @@
                 })
                 .join(' • ') || 'No items';
 
-            // detail chips
+            // detail chips (hidden until open)
             const chips = revealed
               .map((it) => {
                 const name =
@@ -371,13 +371,14 @@
               <span class="chev" aria-hidden="true"></span>
               <span class="muted openhide-label" style="margin-left:6px">Open</span>
             </div>
+            <!-- RIGHT SIDE: DATE ONLY (no summary here) -->
             <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
           </div>
 
-          <!-- summary under title -->
+          <!-- summary sits UNDER the title -->
           <div class="summary-line">${summary}</div>
 
-          <!-- hidden detail chips -->
+          <!-- full details (chips), hidden until expanded -->
           <div class="details" style="display:none; margin-top:6px">
             <div class="loot-chips">${
               chips || `<span class="muted">No snapshot found.</span>`
@@ -388,7 +389,7 @@
           })
           .join('');
 
-        // toggle behavior
+        // expand/collapse
         openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
           row.addEventListener('click', (e) => {
             if (e.target.closest('button,a')) return;
