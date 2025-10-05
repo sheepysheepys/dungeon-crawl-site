@@ -92,7 +92,6 @@
       }));
   }
 
-  // Donor pool from character_items (must be UNEQUIPPED)
   // Donor pool: inventory only (everything in character_items is unequipped)
   async function fetchDonorArmor(characterId) {
     const { data, error } = await sb
