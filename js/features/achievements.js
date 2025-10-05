@@ -483,17 +483,85 @@
   }
 
   /* ========== Realtime (singleton) ========== */
-  function unsubscribeRealtime() {
-    const sbc = sb;
-    if (!sbc) return;
-    try {
-      sbc.removeChannel(window.AppState.achievementsCh);
-    } catch {}
-    try {
-      sbc.removeChannel(window.AppState.lootCh);
-    } catch {}
+  // --- replace the entire unsubscribeRealtime() with this ---
+  async function unsubscribeRealtime() {
+    const chans = [window.AppState?.achievementsCh, window.AppState?.lootCh];
+
+    for (const ch of chans) {
+      try {
+        if (ch && typeof ch.unsubscribe === 'function') {
+          await ch.unsubscribe(); // v2-safe
+        }
+      } catch (e) {
+        console.warn('[achievements] unsubscribeRealtime', e);
+      }
+    }
+
     window.AppState.achievementsCh = null;
     window.AppState.lootCh = null;
+    window.AppState._awardsSubFor = null;
+  }
+
+  // --- replace the entire subscribeRealtime() with this ---
+  function subscribeRealtime(characterId) {
+    if (!characterId || !sb) return;
+
+    // If we already have subscriptions for this character, do nothing
+    if (
+      window.AppState._awardsSubFor === characterId &&
+      (window.AppState.achievementsCh || window.AppState.lootCh)
+    ) {
+      return;
+    }
+
+    // Clean any old channels (defensive; safe if none exist)
+    unsubscribeRealtime(); // note: it's async, but we don't need to await here
+
+    if (typeof sb.channel === 'function') {
+      // achievements INSERTs
+      window.AppState.achievementsCh = sb
+        .channel('achievements:' + characterId)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'achievements',
+            filter: `character_id=eq.${characterId}`,
+          },
+          () => scheduleRefresh()
+        )
+        .subscribe();
+
+      // loot_boxes INSERT/UPDATE
+      window.AppState.lootCh = sb
+        .channel('loot_boxes:' + characterId)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'loot_boxes',
+            filter: `character_id=eq.${characterId}`,
+          },
+          () => scheduleRefresh()
+        )
+        .on(
+          'postgres_changes',
+          {
+            event: 'UPDATE',
+            schema: 'public',
+            table: 'loot_boxes',
+            filter: `character_id=eq.${characterId}`,
+          },
+          () => scheduleRefresh()
+        )
+        .subscribe();
+    } else {
+      console.warn('[achievements] Realtime channel API not available');
+    }
+
+    window.AppState._awardsSubFor = characterId;
   }
 
   function subscribeRealtime(characterId) {
