@@ -267,7 +267,7 @@ function renderLootList(list) {
 async function fetchAwardsAndLoot(characterId) {
   const client = window.sb;
 
-  // Achievements
+  // Achievements unchanged
   const { data: achievements = [] } = await client
     .from('achievements')
     .select('id, title, description, awarded_at')
@@ -311,36 +311,14 @@ async function fetchAwardsAndLoot(characterId) {
 }
 
 async function renderAwardsAndLoot(characterId) {
-  // If you want to skip DOM work when the Awards page isn't visible, uncomment:
-  // const page = document.getElementById('page-awards');
-  // if (page && !page.classList.contains('active')) return;
-
   const { awards, loot } = await fetchAwardsAndLoot(characterId);
   renderAwardsList(awards);
   renderLootList(loot);
 }
 
-// Singleton realtime subscriptions for awards/loot
 function subscribeAwardsAndLoot(characterId) {
-  const sb = window.sb;
-  window.AppState = window.AppState || {};
-
-  // Clean old channels if they exist
-  if (window.AppState.achievementsCh) {
-    try {
-      sb.removeChannel(window.AppState.achievementsCh);
-    } catch {}
-    window.AppState.achievementsCh = null;
-  }
-  if (window.AppState.lootCh) {
-    try {
-      sb.removeChannel(window.AppState.lootCh);
-    } catch {}
-    window.AppState.lootCh = null;
-  }
-
   // Achievements
-  window.AppState.achievementsCh = sb
+  window.sb
     .channel('achievements:' + characterId)
     .on(
       'postgres_changes',
@@ -357,7 +335,7 @@ function subscribeAwardsAndLoot(characterId) {
     .subscribe();
 
   // Loot boxes
-  window.AppState.lootCh = sb
+  window.sb
     .channel('loot_boxes:' + characterId)
     .on(
       'postgres_changes',
@@ -373,6 +351,34 @@ function subscribeAwardsAndLoot(characterId) {
     )
     .subscribe();
 }
+
+// ================= EXPERIENCES HOOK (still keep the listener) =================
+window.addEventListener('character:ready', (ev) => {
+  const ch = ev.detail || {};
+  const sb = window.sb;
+
+  const chId = ch.id ?? ch.character_id;
+  console.log('[xp] character:ready', { hasSb: !!sb, chId });
+
+  if (!document.getElementById('xpList')) {
+    console.warn('[xp] #xpList missing in DOM');
+    return;
+  }
+  if (!sb || !chId) return;
+
+  // Opportunistic load; the explicit boot in init() (below) guarantees it anyway
+  window.App?.Features?.experience?.loadExperiences?.(sb, chId);
+
+  // Realtime (clean old channel if any)
+  window.AppState = window.AppState || {};
+  if (window.AppState.xpChannel) {
+    try {
+      sb.removeChannel(window.AppState.xpChannel);
+    } catch {}
+  }
+  window.AppState.xpChannel =
+    window.App?.Features?.experience?.subscribeExperiences?.(sb, chId) || null;
+});
 
 // ================= EQUIP FLOW + ABILITIES =================
 async function handleAbilityOnEquip(item, slot) {
@@ -472,6 +478,7 @@ async function equipFromInventory(lineId) {
       slotsRemainingToUse = wearLeft;
     } else if (curRow && Number.isFinite(curRow.slots_remaining)) {
       // (2) fallback: previous slot value
+      // If you want to treat "different item in same slot" as reset, comment next line and set to armorCap instead
       slotsRemainingToUse = Math.min(
         armorCap,
         Math.max(0, Number(curRow.slots_remaining))
@@ -1035,7 +1042,6 @@ window.addEventListener('character:ready', (e) => {
   renderHP(ch);
   renderHope(ch);
   App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
-  // NOTE: Awards/loot subscribe & render happen in init() (singleton)
 });
 
 async function init() {
@@ -1070,7 +1076,6 @@ async function init() {
     return;
   }
 
-  window.AppState = window.AppState || {};
   window.AppState.user = user;
   setCharacter(c); // fires character:ready (best-effort)
 
@@ -1087,9 +1092,9 @@ async function init() {
     console.warn('[stats] unexpected', e);
   }
 
-  // initial awards/loot render + singleton realtime subscribe
-  await renderAwardsAndLoot(c.id);
+  // realtime + initial awards/loot render
   subscribeAwardsAndLoot(c.id);
+  await renderAwardsAndLoot(c.id);
 
   // header/meta
   setText?.('charName', c.name ?? '—');
@@ -1132,8 +1137,15 @@ async function init() {
   wireLevelUp();
   wireHpAndHope();
 
-  // ========= GUARANTEED EXPERIENCES BOOT (single subscriber) =========
+  // ========= GUARANTEED EXPERIENCES BOOT (fix for "stuck on Loading…") =========
   await bootExperiences(c.id);
+
+  // Re-dispatch once so any late-loaded listeners (if script order changes) catch up
+  try {
+    window.dispatchEvent(new CustomEvent('character:ready', { detail: c }));
+  } catch (e) {
+    console.warn('[xp] re-dispatch failed', e);
+  }
 
   setText?.('msg', '');
 }
@@ -1142,9 +1154,7 @@ async function init() {
 function wireNotesSave() {
   document
     .getElementById('btnSaveNotes')
-    ?.addEventListener('click', async (e) => {
-      e.preventDefault();
-      e.stopPropagation(); // don't bubble to any global listeners
+    ?.addEventListener('click', async () => {
       const client = window.sb;
       const ch = AppState.character;
       const notesEl = document.getElementById('notes');
