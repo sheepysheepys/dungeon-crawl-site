@@ -1,8 +1,10 @@
 // /js/features/achievements.js  (player view: Awards & Loot tab)
+// Zero-polling, realtime-only, singleton subscriptions
 (function () {
   window.App = window.App || { Features: {}, Logic: {} };
+  window.AppState = window.AppState || {};
 
-  // Supabase client (v2 or your wrapper)
+  // -------- Supabase client detection --------
   const sb =
     window.supabaseClient ||
     window.sb ||
@@ -13,6 +15,7 @@
     console.error('[achievements] Supabase client missing.');
   }
 
+  // -------- Small helpers --------
   const $ = (sel) => document.querySelector(sel);
   const el = (tag, cls) => {
     const n = document.createElement(tag);
@@ -21,7 +24,31 @@
   };
   const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '');
 
-  // ensure .hidden exists once
+  // page visibility + tab check
+  const isDocVisible = () => !document.hidden;
+  const isAwardsActive = () => {
+    const pg = document.getElementById('page-awards');
+    return !!pg && pg.classList.contains('active');
+  };
+
+  // Debounced refresh scheduler
+  let refreshPending = false;
+  let refreshTimer = null;
+  function scheduleRefresh(delayMs = 200) {
+    if (refreshTimer) clearTimeout(refreshTimer);
+    refreshTimer = setTimeout(async () => {
+      refreshTimer = null;
+      if (isDocVisible() && isAwardsActive()) {
+        await render(); // do the real work now
+        refreshPending = false;
+      } else {
+        // Defer work until the user actually views the Awards tab again
+        refreshPending = true;
+      }
+    }, delayMs);
+  }
+
+  // Ensure a tiny .hidden rule exists once (scoped)
   if (!document.querySelector('#globalHiddenRule')) {
     const st = document.createElement('style');
     st.id = 'globalHiddenRule';
@@ -61,49 +88,27 @@
       #page-awards .loot-chip .name { max-width:34ch; overflow:hidden; text-overflow:ellipsis; white-space:nowrap }
       #page-awards .loot-chip .qty  { font-size:12px; opacity:.9 }
       #page-awards .loot-chip .rar  { margin-left:4px }
-      #page-awards .show-toggle { margin-top:6px }
-      #page-awards .show-toggle .btn { font-size:12px; padding:4px 8px }
-         #page-awards .show-toggle { margin-top:6px }
-   #page-awards .show-toggle .btn { font-size:12px; padding:4px 8px }
 
-+  /* Opened rows: compact by default with one-line summary */
-+  #page-awards .expandable { cursor:pointer; }
-+  #page-awards .summary-line {
-+    margin-top: 4px;
-+    font-size: 12px;
-+    color: #a6adbb;
-+    white-space: nowrap;
-+    overflow: hidden;
-+    text-overflow: ellipsis;
-+  }
-+  #page-awards .expandable .details { display: none; margin-top: 6px; }
-+  #page-awards .expandable.open .details { display: block; }
-+  #page-awards .chev {
-+    display:inline-block; width: 0; height: 0; margin-left: 6px;
-+    border-style: solid; border-width: 5px 0 5px 7px;
-+    border-color: transparent transparent transparent currentColor;
-+    transform: rotate(0deg); transition: transform .15s ease;
-+  }
-+  #page-awards .expandable.open .chev { transform: rotate(90deg); }
-#page-awards .expandable { cursor: pointer; }
-#page-awards .summary-line {
-  margin-top: 4px; font-size: 12px; color: #a6adbb;
-  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-}
-#page-awards .chev {
-  display:inline-block; width:0; height:0; margin-left:6px;
-  border-style: solid; border-width: 5px 0 5px 7px;
-  border-color: transparent transparent transparent currentColor;
-  transform: rotate(0deg); transition: transform .15s ease;
-}
-#page-awards .expandable.open .chev { transform: rotate(90deg); }
-
-
+      /* Expand/collapse details */
+      #page-awards .expandable { cursor:pointer; }
+      #page-awards .summary-line {
+        margin-top: 4px; font-size: 12px; color: #a6adbb;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      #page-awards .expandable .details { display: none; margin-top: 6px; }
+      #page-awards .expandable.open .details { display: block; }
+      #page-awards .chev {
+        display:inline-block; width:0; height:0; margin-left:6px;
+        border-style: solid; border-width: 5px 0 5px 7px;
+        border-color: transparent transparent transparent currentColor;
+        transform: rotate(0deg); transition: transform .15s ease;
+      }
+      #page-awards .expandable.open .chev { transform: rotate(90deg); }
     `;
     document.head.appendChild(s);
   }
 
-  /* ========== Modal + Confetti (fully scoped) ========== */
+  /* ========== Modal + Confetti (scoped) ========== */
   function ensureModal() {
     let m = document.querySelector('#lootRevealModal');
     if (m) return m;
@@ -125,33 +130,27 @@
     `;
     document.body.appendChild(m);
 
-    // Strong, fully scoped modal styles
     if (!document.getElementById('lootRevealStyles')) {
       const style = document.createElement('style');
       style.id = 'lootRevealStyles';
       style.textContent = `
-    #lootRevealModal.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
-    #lootRevealModal.hidden{display:none}
-    #lootRevealModal .modal{position:relative;background:#fff;color:#111;min-width:320px;max-width:540px;width:90%;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden;z-index:10001}
-
-    /* SCOPED buttons/pills so nothing else changes site-wide */
-    #lootRevealModal .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;color:#111}
-    #lootRevealModal .btn-ghost{padding:4px 8px;border:none;background:transparent;cursor:pointer;color:#777}
-    #lootRevealModal .pill{display:inline-flex;align-items:center;line-height:1;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;background:#f7f7f9;color:#111}
-    #lootRevealModal .qty-pill{display:inline-flex;align-items:center;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;background:#fff;color:#111}
-
-    #lootRevealModal .rarity-common{background:#f6f6f6}
-    #lootRevealModal .rarity-uncommon{background:#e6f7ec}
-    #lootRevealModal .rarity-rare{background:#e9f0ff}
-    #lootRevealModal .rarity-epic{background:#f3e9ff}
-    #lootRevealModal .rarity-legendary{background:#fff4d6}
-
-    #lootRevealModal .muted{color:#666;font-size:12px}
-    #lootRevealModal .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #eee}
-    #lootRevealModal .row:last-child{border-bottom:none}
-
-    canvas.confetti-canvas, canvas#confetti-canvas { pointer-events:none !important; z-index:9998 !important; position:fixed !important; inset:0 !important; }
-  `;
+        #lootRevealModal.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
+        #lootRevealModal.hidden{display:none}
+        #lootRevealModal .modal{position:relative;background:#fff;color:#111;min-width:320px;max-width:540px;width:90%;border-radius:12px;box-shadow:0 12px 32px rgba(0,0,0,.25);overflow:hidden;z-index:10001}
+        #lootRevealModal .btn{padding:6px 10px;border-radius:8px;border:1px solid #ccc;background:#fff;cursor:pointer;color:#111}
+        #lootRevealModal .btn-ghost{padding:4px 8px;border:none;background:transparent;cursor:pointer;color:#777}
+        #lootRevealModal .pill{display:inline-flex;align-items:center;line-height:1;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;background:#f7f7f9;color:#111}
+        #lootRevealModal .qty-pill{display:inline-flex;align-items:center;border:1px solid #e5e7eb;border-radius:999px;padding:2px 8px;font-size:12px;background:#fff;color:#111}
+        #lootRevealModal .rarity-common{background:#f6f6f6}
+        #lootRevealModal .rarity-uncommon{background:#e6f7ec}
+        #lootRevealModal .rarity-rare{background:#e9f0ff}
+        #lootRevealModal .rarity-epic{background:#f3e9ff}
+        #lootRevealModal .rarity-legendary{background:#fff4d6}
+        #lootRevealModal .muted{color:#666;font-size:12px}
+        #lootRevealModal .row{display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px dashed #eee}
+        #lootRevealModal .row:last-child{border-bottom:none}
+        canvas.confetti-canvas, canvas#confetti-canvas { pointer-events:none !important; z-index:9998 !important; position:fixed !important; inset:0 !important; }
+      `;
       document.head.appendChild(style);
     }
 
@@ -202,7 +201,7 @@
     normalizeConfettiCanvases();
   }
 
-  /* ========== Data ========== */
+  /* ========== Data fetch ========== */
   async function fetchData(characterId) {
     const [ach, boxes] = await Promise.all([
       sb
@@ -280,7 +279,9 @@
     const openedWrap = ensureOpenedSection();
     const badge = $('#lootBadge');
 
-    const unopened = boxes.filter((b) => b.status === 'unopened');
+    const unopened = boxes.filter(
+      (b) => b.status === 'unopened' || b.status === 'pending'
+    );
     const opened = boxes.filter((b) => b.status === 'opened');
 
     if (badge) {
@@ -319,7 +320,7 @@
       }
     }
 
-    // Opened (summary under name, no right-side summary; expandable details)
+    // Opened (expandable details)
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
@@ -333,7 +334,6 @@
               b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
             ).replace(/[<>&]/g, '');
 
-            // one-line summary only (under the title)
             const summary =
               revealed
                 .map((it) => {
@@ -343,7 +343,6 @@
                 })
                 .join(' • ') || 'No items';
 
-            // detail chips (hidden until open)
             const chips = revealed
               .map((it) => {
                 const name =
@@ -371,14 +370,9 @@
               <span class="chev" aria-hidden="true"></span>
               <span class="muted openhide-label" style="margin-left:6px">Open</span>
             </div>
-            <!-- RIGHT SIDE: DATE ONLY (no summary here) -->
             <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
           </div>
-
-          <!-- summary sits UNDER the title -->
           <div class="summary-line">${summary}</div>
-
-          <!-- full details (chips), hidden until expanded -->
           <div class="details" style="display:none; margin-top:6px">
             <div class="loot-chips">${
               chips || `<span class="muted">No snapshot found.</span>`
@@ -389,7 +383,6 @@
           })
           .join('');
 
-        // expand/collapse
         openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
           row.addEventListener('click', (e) => {
             if (e.target.closest('button,a')) return;
@@ -460,8 +453,7 @@
                 <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
               </div>
               <div>${rarityPill(drop).outerHTML}</div>
-            </div>
-          `;
+            </div>`;
           })
           .join('')
       : `<div class="muted">No items in this box.</div>`;
@@ -470,8 +462,8 @@
     fireConfetti();
     normalizeConfettiCanvases();
 
-    // move Unopened → Opened
-    await render();
+    // Trigger a refresh (deferred if Awards tab not active)
+    scheduleRefresh(0);
 
     // refresh inventory UI if available
     const chId = window.AppState?.character?.id;
@@ -480,7 +472,7 @@
         await window.App.Features.inventory.load(chId, { force: true });
       } catch {}
     }
-    // also broadcast a client event for any listeners
+    // Broadcast a client event for any listeners
     items.forEach((it) => {
       window.dispatchEvent(
         new CustomEvent('inventory:add', {
@@ -490,32 +482,50 @@
     });
   }
 
-  /* ========== Realtime + Poll fallback ========== */
-  let rtSubV2 = null;
-  let rtSubV1 = null;
-  let pollTimer = null;
-
+  /* ========== Realtime (singleton) ========== */
   function unsubscribeRealtime() {
+    const sbc = sb;
+    if (!sbc) return;
     try {
-      rtSubV2?.unsubscribe();
+      sbc.removeChannel(window.AppState.achievementsCh);
     } catch {}
     try {
-      rtSubV1?.unsubscribe?.();
+      sbc.removeChannel(window.AppState.lootCh);
     } catch {}
-    rtSubV2 = null;
-    rtSubV1 = null;
+    window.AppState.achievementsCh = null;
+    window.AppState.lootCh = null;
   }
 
-  function subscribe(characterId) {
+  function subscribeRealtime(characterId) {
     if (!characterId || !sb) return;
-    unsubscribeRealtime();
-    if (pollTimer) {
-      clearInterval(pollTimer);
-      pollTimer = null;
+    // Idempotent: if already subscribed for this character, skip
+    if (
+      window.AppState._awardsSubFor === characterId &&
+      (window.AppState.achievementsCh || window.AppState.lootCh)
+    ) {
+      return;
     }
 
+    unsubscribeRealtime();
+
     if (typeof sb.channel === 'function') {
-      rtSubV2 = sb
+      // achievements INSERTs
+      window.AppState.achievementsCh = sb
+        .channel('achievements:' + characterId)
+        .on(
+          'postgres_changes',
+          {
+            event: 'INSERT',
+            schema: 'public',
+            table: 'achievements',
+            filter: `character_id=eq.${characterId}`,
+          },
+          () => scheduleRefresh()
+        )
+        .subscribe();
+
+      // loot_boxes INSERT/UPDATE
+      window.AppState.lootCh = sb
         .channel('loot_boxes:' + characterId)
         .on(
           'postgres_changes',
@@ -525,7 +535,7 @@
             table: 'loot_boxes',
             filter: `character_id=eq.${characterId}`,
           },
-          () => render()
+          () => scheduleRefresh()
         )
         .on(
           'postgres_changes',
@@ -535,19 +545,15 @@
             table: 'loot_boxes',
             filter: `character_id=eq.${characterId}`,
           },
-          () => render()
+          () => scheduleRefresh()
         )
         .subscribe();
-    } else if (typeof sb.from === 'function') {
-      rtSubV1 = sb
-        .from(`loot_boxes:character_id=eq.${characterId}`)
-        .on('INSERT', () => render())
-        .on('UPDATE', () => render())
-        .subscribe();
+    } else {
+      // (legacy supabase-js v1 could be handled here if you still need it)
+      console.warn('[achievements] Realtime channel API not available');
     }
 
-    // safety net
-    pollTimer = setInterval(() => render(), 5000);
+    window.AppState._awardsSubFor = characterId;
   }
 
   /* ========== Orchestration ========== */
@@ -556,27 +562,63 @@
     const charId = window.AppState?.character?.id;
     if (!charId || !sb) return;
 
+    // Only render heavy DOM when the page is active
+    if (!isAwardsActive()) return;
+
     const { achievements, boxes } = await fetchData(charId);
     renderLoot(boxes);
     renderAchievements(achievements);
-
-    subscribe(charId);
   }
 
-  document.addEventListener('DOMContentLoaded', render);
-  window.App.Features.Achievements = { render };
+  // Re-render when user makes the Awards tab visible again (if we deferred)
+  document.addEventListener('visibilitychange', () => {
+    if (isDocVisible() && isAwardsActive() && refreshPending) {
+      scheduleRefresh(0);
+    }
+  });
 
-  // --- Back-compat shim for character.js expecting App.Features.awards ---
+  // Watch tab switches (your tabs flip .active on #page-*)
+  document.addEventListener('click', (e) => {
+    const t = e.target.closest('.tab');
+    if (!t) return;
+    const tabName = t.dataset.page || t.dataset.tab;
+    if (tabName === 'awards') {
+      // Ensure realtime is connected and render (or catch up if deferred)
+      const charId = window.AppState?.character?.id;
+      if (charId) subscribeRealtime(charId);
+      scheduleRefresh(0);
+    }
+  });
+
+  // Initial boot: when character becomes ready, wire realtime once
+  window.addEventListener('character:ready', () => {
+    const charId = window.AppState?.character?.id;
+    if (!charId) return;
+    subscribeRealtime(charId);
+    // Only render now if Awards is already the visible tab; otherwise wait
+    if (isAwardsActive()) scheduleRefresh(0);
+  });
+
+  // Public surface (what character.js expects)
   window.App.Features.awards = {
-    render: () => window.App.Features.Achievements?.render?.(),
+    render: () => scheduleRefresh(0),
     openLootBox: (lootBoxId) => {
       try {
         return openBox(lootBoxId);
       } catch (e) {
-        console.warn('[awards shim] openLootBox failed', e);
+        console.warn('[awards] openLootBox failed', e);
         return null;
       }
     },
-    subscribe: () => {},
+    subscribe: (characterId) => subscribeRealtime(characterId), // no-op if already subscribed
   };
+
+  // Optional: manual init if DOM loads with Awards visible
+  document.addEventListener('DOMContentLoaded', () => {
+    if (isAwardsActive()) {
+      const charId = window.AppState?.character?.id;
+      if (charId) subscribeRealtime(charId);
+      scheduleRefresh(0);
+    }
+  });
 })();
