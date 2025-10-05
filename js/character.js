@@ -874,7 +874,6 @@ document.addEventListener('click', async (e) => {
   if (dmgOpen || dmgClose || dmgCalc || dmgApply) {
     e.preventDefault();
 
-    // Supabase client (v2 or wrapper)
     const sb =
       window.supabaseClient ||
       window.sb ||
@@ -884,10 +883,7 @@ document.addEventListener('click', async (e) => {
     const back = document.getElementById('modalBack');
     const input = document.getElementById('calcDamage');
     const result = document.getElementById('calcResult');
-
-    const setResult = (text) => {
-      if (result) result.textContent = text;
-    };
+    const setResult = (t) => result && (result.textContent = t);
 
     if (dmgOpen) {
       back?.classList.add('show');
@@ -901,28 +897,20 @@ document.addEventListener('click', async (e) => {
     const base = Math.max(0, Number(input?.value || 0));
     const chId = window.AppState?.character?.id;
 
-    // Preview ONLY: show final HP loss, with armor absorbing 1 HP iff armor is actually hit
+    // PREVIEW (raw HP loss before armor)
     if (dmgCalc) {
       if (!sb || !chId) {
         setResult('HP loss: —');
         return;
       }
       try {
-        // We re-use your preview API to get thresholds and the *would-hit* target.
         const prev = await window.App.Logic.combat.previewHit(sb, chId, base);
-
-        // Compute HP loss at the HP layer (not damage layer):
-        //   1) raw HP loss from base damage using your bands
-        //   2) minus 1 if this hit would strike ARMOR (min 0)
         const hpLossRaw = window.App.Logic.combat.hpLossFromDamage(
           prev.amount,
           prev.thresholds.t1,
           prev.thresholds.t2
         );
-        const wouldHitArmor = String(prev.strip || '').startsWith('armor');
-        const hpLossFinal = Math.max(0, hpLossRaw - (wouldHitArmor ? 1 : 0));
-
-        setResult(`HP loss: -${hpLossFinal}`);
+        setResult(`HP loss: -${hpLossRaw}`);
       } catch (err) {
         console.error('[calc] preview error', err);
         setResult('HP loss: —');
@@ -930,7 +918,7 @@ document.addEventListener('click', async (e) => {
       return;
     }
 
-    // Apply: perform the hit and show only the final HP loss (no extra details)
+    // APPLY (real hit, armor may absorb 1 HP silently)
     if (dmgApply) {
       const ch = window.AppState?.character;
       if (!sb || !ch?.id) {
@@ -941,18 +929,14 @@ document.addEventListener('click', async (e) => {
         const out = await window.App.Logic.combat.applyHit(sb, ch, base);
         setResult(`HP loss: -${out.hpLoss}`);
 
-        // Update sheet UI
         if (typeof renderHP === 'function') renderHP(ch);
         await window.App.Features.equipment.computeAndRenderArmor(ch.id);
         await window.App.Features.equipment.load(ch.id);
 
-        // Close the modal
         back?.classList.remove('show');
-        return;
       } catch (err) {
         console.error('[calc] apply error', err);
         setResult('HP loss: —');
-        return;
       }
     }
   }
