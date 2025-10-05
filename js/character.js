@@ -874,7 +874,7 @@ document.addEventListener('click', async (e) => {
   if (dmgOpen || dmgClose || dmgCalc || dmgApply) {
     e.preventDefault();
 
-    // Resolve a usable Supabase client (v2 or your wrapper)
+    // Supabase client (v2 or wrapper)
     const sb =
       window.supabaseClient ||
       window.sb ||
@@ -885,10 +885,7 @@ document.addEventListener('click', async (e) => {
     const input = document.getElementById('calcDamage');
     const result = document.getElementById('calcResult');
 
-    const setResultHtml = (html) => {
-      if (result) result.innerHTML = html;
-    };
-    const setResultText = (text) => {
+    const setResult = (text) => {
       if (result) result.textContent = text;
     };
 
@@ -904,89 +901,57 @@ document.addEventListener('click', async (e) => {
     const base = Math.max(0, Number(input?.value || 0));
     const chId = window.AppState?.character?.id;
 
-    // Preview only
+    // Preview ONLY: show final HP loss, with armor absorbing 1 HP iff armor is actually hit
     if (dmgCalc) {
       if (!sb || !chId) {
-        setResultText('Character or client not ready.');
+        setResult('HP loss: —');
         return;
       }
       try {
+        // We re-use your preview API to get thresholds and the *would-hit* target.
         const prev = await window.App.Logic.combat.previewHit(sb, chId, base);
-        const willMitigate = String(prev.strip || '').startsWith('armor');
 
-        const lines = [];
-        lines.push(`<div>Base damage: <strong>${prev.amount}</strong></div>`);
-        if (willMitigate) {
-          lines.push(
-            `<div>🛡 <strong>Armor will absorb 1</strong> → mitigated: <strong>${prev.mitigated}</strong></div>`
-          );
-        } else {
-          lines.push(
-            `<div>Mitigated: <strong>${prev.mitigated}</strong></div>`
-          );
-        }
-        lines.push(
-          `<div class="muted">Bands: ≤${prev.thresholds.t1}=−1 HP, ≤${prev.thresholds.t2}=−2 HP, >${prev.thresholds.t2}=−3 HP</div>`
+        // Compute HP loss at the HP layer (not damage layer):
+        //   1) raw HP loss from base damage using your bands
+        //   2) minus 1 if this hit would strike ARMOR (min 0)
+        const hpLossRaw = window.App.Logic.combat.hpLossFromDamage(
+          prev.amount,
+          prev.thresholds.t1,
+          prev.thresholds.t2
         );
-        lines.push(
-          `<div>HP loss on hit: <strong>−${prev.hpLoss}</strong></div>`
-        );
-        lines.push(
-          `<div class="muted">Strip outcome: <strong>${
-            prev.strip || 'none'
-          }</strong></div>`
-        );
-        setResultHtml(lines.join(''));
+        const wouldHitArmor = String(prev.strip || '').startsWith('armor');
+        const hpLossFinal = Math.max(0, hpLossRaw - (wouldHitArmor ? 1 : 0));
+
+        setResult(`HP loss: -${hpLossFinal}`);
       } catch (err) {
         console.error('[calc] preview error', err);
-        setResultText('Failed to calculate.');
+        setResult('HP loss: —');
       }
       return;
     }
 
-    // Apply
+    // Apply: perform the hit and show only the final HP loss (no extra details)
     if (dmgApply) {
       const ch = window.AppState?.character;
       if (!sb || !ch?.id) {
-        setResultText('Character or client not ready.');
+        setResult('HP loss: —');
         return;
       }
       try {
         const out = await window.App.Logic.combat.applyHit(sb, ch, base);
+        setResult(`HP loss: -${out.hpLoss}`);
 
-        // Update the result box with what actually happened
-        const mitigatedNote =
-          out.mitigated < base
-            ? `🛡 mitigated <strong>${out.mitigated}</strong>`
-            : `<strong>${out.mitigated}</strong>`;
-        setResultHtml(
-          `<div>Applied: ${base} → ${mitigatedNote} → HP <strong>−${
-            out.hpLoss
-          }</strong></div>
-         <div class="muted">Strip: <strong>${out.strip.type}${
-            out.strip.slot ? ` (${out.strip.slot})` : ''
-          }</strong></div>`
-        );
-
-        // Refresh visible HP and armor/equipment UI (your existing helpers)
+        // Update sheet UI
         if (typeof renderHP === 'function') renderHP(ch);
         await window.App.Features.equipment.computeAndRenderArmor(ch.id);
         await window.App.Features.equipment.load(ch.id);
-
-        // Small heads-up message (optional)
-        window.setText?.(
-          'msg',
-          `Hit ${base} → ${out.mitigated} → HP −${out.hpLoss}; strip: ${
-            out.strip.type
-          }${out.strip.slot ? ` (${out.strip.slot})` : ''}`
-        );
 
         // Close the modal
         back?.classList.remove('show');
         return;
       } catch (err) {
         console.error('[calc] apply error', err);
-        setResultText('Failed to apply damage.');
+        setResult('HP loss: —');
         return;
       }
     }
