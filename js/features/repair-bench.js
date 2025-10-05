@@ -93,17 +93,17 @@
   }
 
   // Donor pool from character_items (must be UNEQUIPPED)
+  // Donor pool: inventory only (everything in character_items is unequipped)
   async function fetchDonorArmor(characterId) {
     const { data, error } = await sb
       .from('character_items')
       .select(
         `
-        id, qty, equipped, item_id,
-        item:items(id, name, slot, armor_value, ability_id, rarity)
-      `
+      id, qty, item_id,
+      item:items(id, name, slot, armor_value, ability_id, rarity)
+    `
       )
-      .eq('character_id', characterId)
-      .eq('equipped', false);
+      .eq('character_id', characterId);
 
     if (error) {
       console.warn('[repair] donors fetch error', error);
@@ -111,10 +111,10 @@
     }
 
     return (data || [])
-      .filter((r) => r.item && Number(r.item.armor_value || 0) > 0)
+      .filter((r) => r.item && Number(r.item.armor_value || 0) > 0) // armor only
       .map((r) => ({
         id: r.id,
-        equipped: false,
+        equipped: false, // inventory is unequipped by definition
         slot: r.item?.slot || null,
         qty: Number(r.qty ?? 1),
         durability_current: null,
