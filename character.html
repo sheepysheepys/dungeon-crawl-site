@@ -657,6 +657,49 @@
       </div>
     </div>
 
+    <!-- /html/partials/repair-modal.html -->
+    <div id="repairModal" class="modal hidden">
+      <div class="modal-box">
+        <div
+          class="row"
+          style="justify-content: space-between; align-items: center"
+        >
+          <h3>Repair Bench</h3>
+          <button id="repairClose" class="btn ghost">✕</button>
+        </div>
+
+        <div class="row" style="gap: 12px; margin-bottom: 8px">
+          <button id="repairTabAuto" class="btn">Auto-Repair</button>
+          <button id="repairTabManual" class="btn secondary">Manual</button>
+          <label class="row" style="margin-left: auto; gap: 8px">
+            <input type="checkbox" id="repairAllowUpTier" />
+            <span>Allow up-tier donors</span>
+          </label>
+          <label class="row" style="gap: 8px">
+            <input type="checkbox" id="repairAllowLegendary" />
+            <span>Allow legendary donors</span>
+          </label>
+        </div>
+
+        <div id="repairCapsule" class="muted" style="margin-bottom: 8px"></div>
+
+        <div id="repairAutoPane">
+          <div id="repairAutoPreview" class="list"></div>
+          <div
+            class="row"
+            style="justify-content: flex-end; gap: 8px; margin-top: 10px"
+          >
+            <button id="repairAutoPlan" class="btn secondary">Plan</button>
+            <button id="repairAutoConfirm" class="btn">Confirm</button>
+          </div>
+        </div>
+
+        <div id="repairManualPane" class="hidden">
+          <div id="repairManualList" class="list"></div>
+        </div>
+      </div>
+    </div>
+
     <!-- scripts -->
     <script>
       window.App = window.App || { Features: {}, Logic: {} };
@@ -688,6 +731,10 @@
     <script defer src="/dungeon-crawl-site/js/features/inventory.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/equipment.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/abilities.js"></script>
+    <script
+      defer
+      src="/dungeon-crawl-site/js/features/repair-bench.js"
+    ></script>
     <script
       defer
       src="/dungeon-crawl-site/js/features/achievements.js"

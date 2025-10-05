@@ -20,6 +20,39 @@
 
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
+  // ---- NEW: small helper to open the Repair Bench modal ----
+  function openRepairBench({
+    cap,
+    equippedOnly = true,
+    allowUpTier = false,
+    allowLegendary = false,
+  } = {}) {
+    try {
+      // Ensure the feature is wired once
+      if (!App?.Features?.repairBench?.open) {
+        console.warn(
+          '[rests] repairBench feature not found. Did you include /js/features/repair-bench.js?'
+        );
+        return false;
+      }
+      if (App?.Features?.repairBench?.wire) {
+        // wire() is idempotent in the feature module
+        App.Features.repairBench.wire();
+      }
+      App.Features.repairBench.open({
+        cap: cap ?? Infinity,
+        equippedOnly,
+        allowUpTier,
+        allowLegendary,
+      });
+      return true;
+    } catch (e) {
+      console.warn('[rests] failed to open repair bench', e);
+      return false;
+    }
+  }
+  // ----------------------------------------------------------
+
   // Repair up to N armor segments across equipped armor (favor most damaged first)
   async function repairArmorSegments(sb, chId, nSegments) {
     if (nSegments <= 0) return 0;
@@ -146,8 +179,19 @@
         out.push(`+${gain} HP`);
       }
 
-      // Armor 1d4 segments total
-      if (opts.repair1d4) {
+      // OPTION A (new): Open Repair Bench to fix ONE equipped piece (player chooses auto/manual)
+      // Trigger with opts.repairOneArmor === true
+      if (opts.repairOneArmor) {
+        const opened = openRepairBench({
+          cap: 1,
+          equippedOnly: true,
+          allowUpTier: false,
+          allowLegendary: false,
+        });
+        if (opened) out.push('Repair Bench: 1 repair available');
+      }
+      // OPTION B (legacy): keep your old 1d4 segments repair if desired
+      else if (opts.repair1d4) {
         const n = roll1d4();
         const applied = await repairArmorSegments(sb, chId, n);
         out.push(`Repair ${applied}/${n} armor`);
@@ -187,8 +231,23 @@
         out.push(`HP → max`);
       }
 
-      // Repair all equipped armor to max
-      if (opts.repairAll) {
+      // LONG REST REPAIRS
+      // If the UI checkbox "Repair equipped armor" is checked, pass opts.repairEquippedArmor === true
+      // → Open Repair Bench with cap = Infinity (repairs ALL broken equipped pieces, auto or manual).
+      if (opts.repairEquippedArmor) {
+        const opened = openRepairBench({
+          cap: Infinity,
+          equippedOnly: true,
+          allowUpTier: false,
+          allowLegendary: false,
+        });
+        if (opened)
+          out.push(
+            'Repair Bench: all equipped broken armor available for repair'
+          );
+      }
+      // Otherwise, if you still want a pure instant full repair fallback:
+      else if (opts.repairAll) {
         await fullRepairAllEquippedArmor(sb, chId);
         out.push(`Armor fully repaired`);
       }
