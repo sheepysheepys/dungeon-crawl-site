@@ -9,7 +9,7 @@
   const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
 
   // --- build default slot grid if not present ---
-  const DEFAULT_SLOTS = ['head', 'chest', 'arms', 'legs', 'accessory'];
+  const DEFAULT_SLOTS = ['head', 'chest', 'hands', 'legs', 'accessory'];
 
   function ensureSlots() {
     const grid = $('#armorSlots');
