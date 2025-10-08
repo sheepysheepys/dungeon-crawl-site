@@ -1079,3 +1079,45 @@ button.btn-tiny,
 .boxes .gone {
   opacity: 0.35;
 }
+
+#page-inventory #inventoryAllList .inv-row {
+  display: grid;
+  grid-template-columns: 1fr minmax(220px, 38%);
+  gap: 12px;
+  align-items: start;
+  padding: 8px 0;
+  border-bottom: 1px dashed var(--line2, rgba(255, 255, 255, 0.12));
+}
+#page-inventory #inventoryAllList .inv-row:last-child {
+  border-bottom: none;
+}
+
+#page-inventory .inv-main {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+#page-inventory .inv-name {
+  font-weight: 600;
+}
+#page-inventory .inv-meta {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  opacity: 0.8;
+}
+#page-inventory .inv-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+#page-inventory .inv-desc {
+  font-size: 12px;
+  color: var(--muted, #a6adbb);
+  line-height: 1.35;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
