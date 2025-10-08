@@ -101,17 +101,9 @@ function renderHP(ch) {
   elBar.style.width =
     (total > 0 ? (current / total) * 100 : 0).toFixed(2) + '%';
 
-  const t1 = hasNum(ch?.dmg_t1)
-    ? toNum(ch.dmg_t1)
-    : hasNum(ch?.dmg_minor)
-    ? toNum(ch.dmg_minor)
-    : 7;
+  const t1 = hasNum(ch?.dmg_t1) ? toNum(ch.dmg_t1) : 7;
 
-  const t2Raw = hasNum(ch?.dmg_t2)
-    ? toNum(ch.dmg_t2)
-    : hasNum(ch?.dmg_major)
-    ? toNum(ch.dmg_major)
-    : 14;
+  const t2Raw = hasNum(ch?.dmg_t2) ? toNum(ch.dmg_t2) : 14;
 
   const t2 = Math.max(t1 + 1, t2Raw);
 

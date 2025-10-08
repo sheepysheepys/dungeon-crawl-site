@@ -6,14 +6,14 @@
   async function loadThresholds(sb, chId) {
     const { data } = await sb
       .from('characters')
-      .select('hp_current,hp_total,dmg_t1,dmg_t2,dmg_minor,dmg_major')
+      .select('hp_current,hp_total,dmg_t1,dmg_t2')
       .eq('id', chId)
       .maybeSingle();
     return {
       hp_current: Number(data?.hp_current ?? 0),
       hp_total: Number(data?.hp_total ?? 0),
-      t1: Number(data?.dmg_t1 ?? data?.dmg_minor ?? 7),
-      t2: Number(data?.dmg_t2 ?? data?.dmg_major ?? 14),
+      t1: Number.isFinite(Number(data?.dmg_t1)) ? Number(data.dmg_t1) : 7,
+      t2: Number.isFinite(Number(data?.dmg_t2)) ? Number(data.dmg_t2) : 14,
     };
   }
 
