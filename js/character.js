@@ -1017,6 +1017,88 @@ async function bootExperiences(chId) {
   }
 }
 
+// --- Notes helpers (safe, self-contained) ---
+
+async function fetchCharacterNotes() {
+  const sb = window.sb;
+  const chId = window.AppState?.character?.id;
+  if (!sb || !chId) return { notes: '', error: new Error('Not ready') };
+
+  const { data, error } = await sb
+    .from('characters')
+    .select('notes')
+    .eq('id', chId)
+    .maybeSingle();
+
+  return { notes: data?.notes ?? '', error };
+}
+
+async function loadNotesIntoTextarea() {
+  const ta = document.getElementById('notes');
+  if (!ta) return;
+  const { notes, error } = await fetchCharacterNotes();
+  if (error) {
+    console.warn('[notes] load failed', error);
+    // Don't clobber whatever the user has typed if it failed
+    return;
+  }
+  ta.value = notes || '';
+}
+
+function wireNotesTabRefresh() {
+  // Refresh notes when the Notes tab is opened
+  const tabSelector = '[data-tab="notes"], [data-page="notes"]';
+  document.addEventListener('click', async (e) => {
+    const t = e.target.closest(tabSelector);
+    if (!t) return;
+    // Let your tab-switching code run first, then refresh textarea
+    requestAnimationFrame(() => loadNotesIntoTextarea());
+  });
+}
+
+function wireNotesSave() {
+  const btn = document.getElementById('btnSaveNotes');
+  if (!btn) return;
+
+  btn.addEventListener('click', async () => {
+    const sb = window.sb;
+    const chId = window.AppState?.character?.id;
+    const ta = document.getElementById('notes');
+    if (!sb || !chId || !ta) return;
+
+    const notes = ta.value ?? '';
+    btn.disabled = true;
+
+    try {
+      const { data, error } = await sb
+        .from('characters')
+        .update({ notes })
+        .eq('id', chId)
+        .select('notes') // return updated value
+        .single();
+
+      if (error) {
+        console.error('[notes] save failed', error);
+        setText?.(
+          'msg',
+          `Failed to save notes: ${error.message || error.code || 'RLS?'}`
+        );
+        return;
+      }
+
+      // reflect locally
+      if (window.AppState?.character)
+        window.AppState.character.notes = data?.notes ?? notes;
+      setText?.('msg', 'Notes saved.');
+    } catch (e) {
+      console.error('[notes] unexpected', e);
+      setText?.('msg', 'Failed to save notes.');
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 // ================= INIT =================
 window.addEventListener('character:ready', (e) => {
   const ch = e.detail;
@@ -1106,6 +1188,7 @@ async function init() {
   await App.Features.abilities.render?.(c.id);
   await renderActiveWeapons();
   await populateNonEquipPicker();
+  await loadNotesIntoTextarea();
 
   // NEW: wire Rests UI (moved to /js/features/rests-ui.js)
   App.Features?.restsUI?.wireRestUI?.();
@@ -1116,6 +1199,7 @@ async function init() {
 
   // ancillary
   wireNotesSave();
+  wireNotesTabRefresh();
   wireLevelUp();
   wireHpAndHope();
 
