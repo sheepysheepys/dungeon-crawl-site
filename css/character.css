@@ -1151,3 +1151,27 @@ button.btn-tiny,
   align-items: center;
   gap: 6px;
 }
+
+/* --- Silhouette state lockdown (put LAST) --- */
+.silhouette .overlay .slot-region {
+  /* ensure classes control color even if an inline fill sneaks in */
+  fill: var(--none-color) !important;
+  stroke: var(--line) !important;
+}
+
+/* state colors (cover both data-state and class) */
+.silhouette .overlay .slot-region[data-state='armor'],
+.silhouette .overlay .slot-region.state-armor {
+  fill: var(--armor-color) !important;
+  stroke: var(--armor-color) !important;
+}
+.silhouette .overlay .slot-region[data-state='exo'],
+.silhouette .overlay .slot-region.state-exo {
+  fill: var(--exo-color) !important;
+  stroke: var(--exo-color) !important;
+}
+.silhouette .overlay .slot-region[data-state='none'],
+.silhouette .overlay .slot-region.state-none {
+  fill: var(--none-color) !important;
+  stroke: var(--line) !important;
+}

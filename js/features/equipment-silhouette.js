@@ -40,16 +40,27 @@
   }
 
   function paintColors() {
-    for (const slot of SLOTS) {
-      const nodes = nodesFor(slot);
-      const st = colorState[slot] || 'none';
-      const title = `${slot.toUpperCase()}: ${st}`;
-      nodes.forEach((n) => setStateOnNode(n, st, title));
-      if (nodes.length === 0) {
-        // Helpful once; comment out if noisy
-        // console.warn(`[silhouette] No SVG nodes with data-slot="${slot}"`);
-      }
-    }
+    // reset everything to none + clear stray inline fills
+    document
+      .querySelectorAll('.silhouette .overlay .slot-region')
+      .forEach((el) => {
+        el.classList.remove('state-armor', 'state-exo', 'state-none');
+        el.setAttribute('data-state', 'none');
+        if (el.style && el.style.fill) el.style.removeProperty('fill');
+      });
+
+    // apply desired state per slot
+    ['head', 'chest', 'legs', 'hands', 'feet'].forEach((slot) => {
+      const st = (colorState && colorState[slot]) || 'none';
+      document
+        .querySelectorAll(
+          `.silhouette .overlay .slot-region[data-slot="${slot}"]`
+        )
+        .forEach((el) => {
+          el.classList.add('state-' + st);
+          el.setAttribute('data-state', st);
+        });
+    });
   }
 
   function paintTotals() {
@@ -72,6 +83,21 @@
     $$('.totals .pips .pip').forEach((p, i) =>
       p.classList.toggle('filled', i < exoLeft)
     );
+  }
+
+  function sanitizeSilhouetteFills() {
+    document
+      .querySelectorAll('.silhouette .overlay .slot-region')
+      .forEach((n) => {
+        // Strip any inline or attribute fills that override classes
+        if (n.hasAttribute('fill')) n.removeAttribute('fill');
+        if (n.style && n.style.fill) n.style.removeProperty('fill');
+      });
+  }
+
+  function init() {
+    sanitizeSilhouetteFills(); // <— add this line
+    updateAll();
   }
 
   function updateAll() {
