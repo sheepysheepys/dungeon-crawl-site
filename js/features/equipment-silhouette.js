@@ -7,18 +7,18 @@
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
 
-  // Current visual state per slot: 'armor' | 'exo' | 'none'
+  // Visual state per slot: 'armor' | 'exo' | 'none'
   const colorState = Object.fromEntries(SLOTS.map((k) => [k, 'none']));
 
-  // Simple model used by totals
+  // Model for totals/debug
   let model = {
-    exoAny: 0, // 1 if any equipped piece has exo_left > 0
+    exoCount: 0, // 0..5 (number of slots whose exo_left > 0)
     bySlot: Object.fromEntries(
       SLOTS.map((k) => [k, { equipped: 0, wear: 0, exo: 0 }])
     ),
   };
 
-  // ----- low-level painters -----
+  // ----- painters -----
   function nodesFor(slot) {
     return $$('.silhouette .overlay .slot-region[data-slot="' + slot + '"]');
   }
@@ -31,14 +31,14 @@
   }
 
   function paintColors() {
-    // Reset everything to NONE + clear stray inline fills
+    // Hard reset every frame
     $$('.silhouette .overlay .slot-region').forEach((el) => {
       el.classList.remove('state-armor', 'state-exo', 'state-none');
       el.setAttribute('data-state', 'none');
       if (el.style && el.style.fill) el.style.removeProperty('fill');
     });
 
-    // Apply desired state per slot
+    // Apply by slot
     for (const slot of SLOTS) {
       const st = colorState[slot] || 'none';
       nodesFor(slot).forEach((el) => {
@@ -50,13 +50,11 @@
   }
 
   function paintTotals() {
-    // Armor count = number of slots currently showing armor
     const armorCount = SLOTS.reduce(
       (n, k) => n + (colorState[k] === 'armor' ? 1 : 0),
       0
     );
-
-    const exoLeft = model.exoAny ? 1 : 0; // flip to per-slot if you add per-slot pips later
+    const exoLeft = Math.max(0, Math.min(5, Number(model.exoCount || 0))); // 0..5
     const total = exoLeft + armorCount;
 
     const exoEl = $('#silExoLeft');
@@ -67,6 +65,7 @@
     if (armorEl) armorEl.textContent = String(armorCount);
     if (totalEl) totalEl.textContent = String(total);
 
+    // Fill exo pips (0..5)
     $$('.totals .pips .pip').forEach((p, i) =>
       p.classList.toggle('filled', i < exoLeft)
     );
@@ -77,61 +76,65 @@
     paintTotals();
   }
 
-  // ----- PUBLIC: drive from equipment rows (truth from DB) -----
-  // rows: [{ slot, item_id, slots_remaining, exo_left }, ...]
+  // ----- core logic (per-slot) -----
+  // rows: may include equipped rows and exo-only rows
+  // shape: [{ slot, item_id, slots_remaining, exo_left }, ...]
   function updateFromEquipmentRows(rows) {
-    // reset model and state
+    // Reset model/state
     model = {
-      exoAny: 0,
+      exoCount: 0,
       bySlot: Object.fromEntries(
         SLOTS.map((k) => [k, { equipped: 0, wear: 0, exo: 0 }])
       ),
     };
     SLOTS.forEach((k) => (colorState[k] = 'none'));
 
-    // consider only equipped records
-    const eq = (rows || []).filter((r) => !!r?.item_id);
-
-    const by = {};
-    for (const r of eq) {
+    // Aggregate by slot
+    const agg = {};
+    for (const r of rows || []) {
       const slot = String(r?.slot || '').toLowerCase();
       if (!SLOTS.includes(slot)) continue;
 
-      const wear = Math.max(0, Number(r?.slots_remaining || 0));
-      const exo = Math.max(0, Number(r?.exo_left || 0));
+      const equipped = !!r?.item_id; // item present
+      const wear = equipped ? Math.max(0, Number(r?.slots_remaining || 0)) : 0;
+      const exo = Math.max(0, Number(r?.exo_left || 0)); // exo can exist with or without item
 
-      const cur = by[slot] || { wear: 0, exo: 0 };
-      by[slot] = {
+      const cur = agg[slot] || { wear: 0, equipped: 0, exo: 0 };
+      agg[slot] = {
         wear: Math.max(cur.wear, wear),
+        equipped: cur.equipped || (equipped ? 1 : 0),
         exo: Math.max(cur.exo, exo),
       };
     }
 
-    // decide: armor (wear>0) > exo > none
+    // Decide per-slot state: armor (wear>0 & equipped) > exo (exo>0) > none
+    let exoCount = 0;
     for (const slot of SLOTS) {
-      const a = by[slot] || { wear: 0, exo: 0 };
-      // update internal model (for totals/debug)
-      model.bySlot[slot] = {
-        equipped: a.wear > 0 || a.exo > 0 ? 1 : 0,
-        wear: a.wear,
-        exo: a.exo,
-      };
-      colorState[slot] = a.wear > 0 ? 'armor' : a.exo > 0 ? 'exo' : 'none';
-      if (a.exo > 0) model.exoAny = 1;
+      const a = agg[slot] || { wear: 0, equipped: 0, exo: 0 };
+      model.bySlot[slot] = { equipped: a.equipped, wear: a.wear, exo: a.exo };
+
+      if (a.wear > 0 && a.equipped) {
+        colorState[slot] = 'armor';
+      } else if (a.exo > 0) {
+        colorState[slot] = 'exo';
+        exoCount += 1; // 1 per slot that has any exo
+      } else {
+        colorState[slot] = 'none';
+      }
     }
+    model.exoCount = exoCount;
 
     updateAll();
   }
 
-  // ----- query + subscribe helpers -----
+  // ----- DB fetch + realtime -----
   async function refresh(sb, chId) {
     try {
       const { data = [], error } = await sb
         .from('character_equipment')
         .select('slot, item_id, slots_remaining, exo_left')
         .eq('character_id', chId)
-        .in('slot', SLOTS)
-        .not('item_id', 'is', null); // only equipped
+        .in('slot', SLOTS); // include exo-only rows too
 
       if (error) throw error;
       updateFromEquipmentRows(data);
@@ -183,18 +186,18 @@
     return out;
   };
 
-  // init: sanitize SVG fills once, then do a first paint
+  // init
   function init() {
     sanitizeSilhouetteFills();
-    updateAll();
+    updateAll(); // first paint
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
   window.App.Features.EquipmentSilhouette = {
     updateFromEquipmentRows,
-    refresh, // call after equip/unequip for instant repaint
-    subscribe, // optional: realtime repaint
+    refresh,
+    subscribe,
     init,
   };
 })();
