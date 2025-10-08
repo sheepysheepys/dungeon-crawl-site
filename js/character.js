@@ -94,41 +94,36 @@ function renderHP(ch) {
     return;
   }
 
-  const total = Number(ch?.hp_total ?? 0);
-  const current = Math.max(0, Math.min(total, Number(ch?.hp_current ?? 0)));
+  const toNum = (v) => (v === '' || v == null ? NaN : Number(v));
+  const hasNum = (v) => Number.isFinite(toNum(v));
+
+  const total = toNum(ch?.hp_total) || 0;
+  const current = Math.max(0, Math.min(total, toNum(ch?.hp_current) || 0));
   elCur.textContent = String(current);
   elTot.textContent = String(total);
 
   const pct = total > 0 ? (current / total) * 100 : 0;
   elBar.style.width = pct.toFixed(2) + '%';
 
-  // thresholds (with fallbacks)
-  const t1 = Number.isFinite(ch?.dmg_t1)
-    ? Number(ch.dmg_t1)
-    : Number.isFinite(ch?.dmg_minor)
-    ? Number(ch.dmg_minor)
+  const t1 = hasNum(ch?.dmg_t1)
+    ? toNum(ch.dmg_t1)
+    : hasNum(ch?.dmg_minor)
+    ? toNum(ch.dmg_minor)
     : 7;
 
-  const t2Raw = Number.isFinite(ch?.dmg_t2)
-    ? Number(ch.dmg_t2)
-    : Number.isFinite(ch?.dmg_major)
-    ? Number(ch.dmg_major)
+  const t2Raw = hasNum(ch?.dmg_t2)
+    ? toNum(ch.dmg_t2)
+    : hasNum(ch?.dmg_major)
+    ? toNum(ch.dmg_major)
     : 14;
 
-  const t2 = Math.max(t1 + 1, t2Raw); // ensure T2 > T1
+  const t2 = Math.max(t1 + 1, t2Raw);
 
-  setText?.('thT1', t1);
-  setText?.('thT2', t2);
-
-  const t1El = document.getElementById('t1Val');
-  const t2LowEl = document.getElementById('t2Low');
-  const t2ValEl = document.getElementById('t2Val');
-  const t3LowEl = document.getElementById('t3Low');
-
-  if (t1El) t1El.textContent = String(t1);
-  if (t2LowEl) t2LowEl.textContent = String(t1 + 1);
-  if (t2ValEl) t2ValEl.textContent = String(t2);
-  if (t3LowEl) t3LowEl.textContent = String(t2 + 1);
+  // write to UI (replaceChildren helps beat other writers)
+  document.getElementById('t1Val')?.replaceChildren(String(t1));
+  document.getElementById('t2Low')?.replaceChildren(String(t1 + 1));
+  document.getElementById('t2Val')?.replaceChildren(String(t2));
+  document.getElementById('t3Low')?.replaceChildren(String(t2 + 1));
 }
 
 function renderHope(ch) {
@@ -1146,6 +1141,8 @@ async function init() {
   } catch (e) {
     console.warn('[xp] re-dispatch failed', e);
   }
+  // ensure threshold spans win over any late template writes
+  requestAnimationFrame(() => renderHP(AppState.character));
 
   setText?.('msg', '');
 }
