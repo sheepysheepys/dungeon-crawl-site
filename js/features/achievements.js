@@ -104,6 +104,55 @@
         transform: rotate(0deg); transition: transform .15s ease;
       }
       #page-awards .expandable.open .chev { transform: rotate(90deg); }
+      /* Loot box cards + in-card drawer */
+#page-awards .lb-card {
+  border: 1px solid rgba(255,255,255,.12);
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: rgba(255,255,255,.04);
+  margin-bottom: 8px;
+}
+
+#page-awards .lb-head {
+  display:flex; justify-content:space-between; align-items:center;
+}
+
+#page-awards .lb-title { display:flex; align-items:center; gap:8px; }
+#page-awards .lb-date  { color:#a6adbb; font-size:12px; }
+
+#page-awards .lb-drawer {
+  overflow: hidden;
+  max-height: 0;                  /* collapsed */
+  transition: max-height .2s ease;
+}
+
+#page-awards .lb-card.open .lb-drawer {
+  max-height: 180px;              /* visible space for loot (scrolls if more) */
+}
+
+#page-awards .lb-drawer-inner {
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px dashed rgba(255,255,255,.12);
+  max-height: 160px;
+  overflow: auto;                  /* scroll inside the card */
+}
+
+/* chips (keep your existing) */
+#page-awards .loot-chips { display:flex; flex-wrap:wrap; gap:6px; }
+#page-awards .loot-chip  {
+  display:inline-flex; align-items:center; gap:8px;
+  border:1px solid rgba(255,255,255,.14); border-radius:10px;
+  padding:6px 8px; background:rgba(255,255,255,.05)
+}
+#page-awards .chev {
+  display:inline-block; width:0; height:0; margin-left:6px;
+  border-style: solid; border-width: 5px 0 5px 7px;
+  border-color: transparent transparent transparent currentColor;
+  transform: rotate(0deg); transition: transform .15s ease;
+}
+#page-awards .lb-card.open .chev { transform: rotate(90deg); }
+
     `;
     document.head.appendChild(s);
   }
