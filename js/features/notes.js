@@ -1,11 +1,30 @@
 // /js/features/notes.js
 (function (App) {
-  const PAGE_SIZE = 10; // number of notes to load per page
+  const PAGE_SIZE = 10;
   let _page = 0;
   let _total = 0;
 
-  // ========== FETCH & RENDER ==========
-  async function loadNotes(sb, chId, { append = false } = {}) {
+  // small helpers
+  function setMsg(s) {
+    const msgEl = document.getElementById('msg');
+    if (msgEl) msgEl.textContent = s || '';
+  }
+  function escapeHtml(s) {
+    return String(s || '').replace(
+      /[&<>"']/g,
+      (m) =>
+        ({
+          '&': '&amp;',
+          '<': '&lt;',
+          '>': '&gt;',
+          '"': '&quot;',
+          "'": '&#39;',
+        }[m])
+    );
+  }
+
+  // ========= LOAD =========
+  async function loadNotes(sb, chId, currentUserId, { append = false } = {}) {
     const wrap = document.getElementById('notesHistory');
     const moreWrap = document.getElementById('notesMoreWrap');
     if (!wrap) return;
@@ -34,11 +53,16 @@
       div.className = 'note-row';
       div.style.padding = '8px 0';
       div.style.borderBottom = '1px solid var(--line2)';
+
+      const who =
+        n.updated_by && currentUserId && n.updated_by === currentUserId
+          ? ' — you'
+          : '';
+
       div.innerHTML = `
         <div>${escapeHtml(n.body)}</div>
         <div class="muted mono" style="font-size:12px; margin-top:2px;">
-          ${new Date(n.updated_at).toLocaleString()}
-          ${n.updated_by ? ` — ${escapeHtml(n.updated_by)}` : ''}
+          ${new Date(n.updated_at).toLocaleString()}${who}
         </div>`;
       frag.appendChild(div);
     });
@@ -49,27 +73,28 @@
       wrap.appendChild(frag);
     }
 
-    // "Load more" visibility
-    const loadedCount = (document.querySelectorAll('.note-row') || []).length;
+    // toggle "Load more"
+    const loadedCount = (wrap.querySelectorAll('.note-row') || []).length;
     if (moreWrap) moreWrap.style.display = loadedCount < _total ? '' : 'none';
   }
 
-  // ========== SAVE ==========
-  async function saveNote(sb, chId, userEmail) {
+  // ========= SAVE =========
+  async function saveNote(sb, chId, user) {
     const notesEl = document.getElementById('notes');
-    const msgEl = document.getElementById('msg');
     const body = (notesEl?.value || '').trim();
     if (!body) {
       setMsg('Enter a note first.');
       return;
     }
 
-    const { error } = await sb.from('character_notes').insert({
+    const payload = {
       character_id: chId,
       body,
-      updated_by: userEmail || 'unknown',
-    });
+      updated_at: new Date().toISOString(), // client stamp (OK if DB also has default)
+      updated_by: user?.id || null, // ✅ UUID, not email
+    };
 
+    const { error } = await sb.from('character_notes').insert(payload);
     if (error) {
       console.error('[notes] save error', error);
       setMsg('Failed to save note.');
@@ -79,41 +104,30 @@
     notesEl.value = '';
     setMsg('Note saved!');
     _page = 0;
-    await loadNotes(sb, chId);
+    await loadNotes(sb, chId, user?.id);
   }
 
-  // helper
-  function setMsg(s) {
-    const msgEl = document.getElementById('msg');
-    if (msgEl) msgEl.textContent = s;
-  }
-
-  function escapeHtml(s) {
-    return String(s || '').replace(
-      /[&<>"']/g,
-      (m) =>
-        ({
-          '&': '&amp;',
-          '<': '&lt;',
-          '>': '&gt;',
-          '"': '&quot;',
-          "'": '&#39;',
-        }[m])
-    );
-  }
-
-  // ========== WIRING ==========
+  // ========= WIRING =========
   async function wireNotes(sb, ch) {
     if (!sb || !ch?.id) return;
 
+    // prefer the AppState user (already fetched in character.js); fall back to auth.getUser
+    let user = window.AppState?.user || null;
+    if (!user?.id) {
+      try {
+        const { data: { user: u } = {} } = await sb.auth.getUser();
+        if (u) user = u;
+      } catch {}
+    }
+
     const chId = ch.id;
-    const email = ch.user_email || window.AppState?.user?.email || null;
+    const userId = user?.id || null;
 
     // Save button
     document
       .getElementById('btnSaveNotes')
       ?.addEventListener('click', async () => {
-        await saveNote(sb, chId, email);
+        await saveNote(sb, chId, user);
       });
 
     // Load more
@@ -121,20 +135,20 @@
       .getElementById('btnNotesMore')
       ?.addEventListener('click', async () => {
         _page++;
-        await loadNotes(sb, chId, { append: true });
+        await loadNotes(sb, chId, userId, { append: true });
       });
 
     // Initial load
     _page = 0;
-    await loadNotes(sb, chId);
+    await loadNotes(sb, chId, userId);
   }
 
-  // ========== EXPORT ==========
+  // ========= EXPORT =========
   App.Features = App.Features || {};
   App.Features.notes = { wireNotes, loadNotes };
 })(window.App || (window.App = {}));
 
-// Wire automatically on character:ready
+// Auto-wire on character ready
 window.addEventListener('character:ready', async (ev) => {
   const ch = ev.detail;
   const sb = window.sb;
