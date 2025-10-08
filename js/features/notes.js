@@ -108,10 +108,13 @@
   }
 
   // ========= WIRING =========
-  async function wireNotes(sb, ch) {
-    if (!sb || !ch?.id) return;
+  let __notesWiredOnce = false;
 
-    // prefer the AppState user (already fetched in character.js); fall back to auth.getUser
+  async function wireNotes(sb, ch) {
+    if (!sb || !ch?.id || __notesWiredOnce) return;
+    __notesWiredOnce = true;
+
+    // prefer AppState user (already fetched); fall back to auth.getUser
     let user = window.AppState?.user || null;
     if (!user?.id) {
       try {
@@ -121,26 +124,48 @@
     }
 
     const chId = ch.id;
-    const userId = user?.id || null;
+    const userEmail = user?.email || 'unknown';
 
-    // Save button
+    // Wire Save
     document
       .getElementById('btnSaveNotes')
       ?.addEventListener('click', async () => {
-        await saveNote(sb, chId, user);
+        await saveNote(sb, chId, userEmail);
+        // clear in-tab draft after successful save
+        const notesEl2 = document.getElementById('notes');
+        if (notesEl2) notesEl2.value = '';
+        sessionStorage.removeItem('unsavedNoteDraft');
       });
 
-    // Load more
+    // Wire "Load more"
     document
       .getElementById('btnNotesMore')
       ?.addEventListener('click', async () => {
         _page++;
-        await loadNotes(sb, chId, userId, { append: true });
+        await loadNotes(sb, chId, { append: true });
       });
 
-    // Initial load
+    // Initial list load
     _page = 0;
-    await loadNotes(sb, chId, userId);
+    await loadNotes(sb, chId);
+
+    // Textarea behavior
+    const notesEl = document.getElementById('notes');
+    if (notesEl) {
+      // Always start fresh on full page load
+      notesEl.value = '';
+
+      // Optional: keep an in-tab draft only (won’t persist across refreshes)
+      notesEl.addEventListener('input', () => {
+        sessionStorage.setItem('unsavedNoteDraft', notesEl.value);
+      });
+
+      // Restore draft if user navigated around within the SPA
+      const draft = sessionStorage.getItem('unsavedNoteDraft');
+      if (draft && draft.trim()) {
+        notesEl.value = draft;
+      }
+    }
   }
 
   // ========= EXPORT =========
