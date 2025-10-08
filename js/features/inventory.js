@@ -92,7 +92,6 @@
     const { data, error } = await client
       .from('character_items')
       .select(
-        // add notes to the joined item columns
         'id,item_id,qty,item:items(id,name,slot,damage,armor_value,ability_id,rarity,notes)'
       )
       .eq('character_id', characterId)
@@ -107,13 +106,6 @@
     const root = document.querySelector('#inventoryAllList');
     const empty = document.querySelector('#inventoryEmpty');
     if (!root) return rows;
-
-    if (!rows.length) {
-      root.innerHTML = '';
-      if (empty) empty.style.display = '';
-      return rows;
-    }
-    if (empty) empty.style.display = 'none';
 
     // --- helpers ---
     const ARMOR_SLOTS = new Set(['head', 'chest', 'legs', 'hands', 'feet']);
@@ -140,49 +132,58 @@
       const desc = it.notes ? escapeHtml(it.notes) : 'No description.';
 
       const qtyCtrls = `
-        <div class="inv-actions">
-          <button class="btn-tiny" data-action="dec" data-item="${
-            r.item_id
-          }">−1</button>
-          <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
-          <button class="btn-tiny" data-action="inc" data-item="${
-            r.item_id
-          }">+1</button>
-          ${
-            equippable
-              ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
-              : ``
-          }
-        </div>
-      `;
+      <div class="inv-actions">
+        <button class="btn-tiny" data-action="dec" data-item="${
+          r.item_id
+        }">−1</button>
+        <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+        <button class="btn-tiny" data-action="inc" data-item="${
+          r.item_id
+        }">+1</button>
+        ${
+          equippable
+            ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
+            : ``
+        }
+      </div>
+    `;
 
       return `
-        <div class="inv-row" data-line="${r.id}">
-          <div class="inv-main">
-            <span class="inv-name" title="${desc}">${name}</span>
-            <span class="inv-meta">${meta}</span>
-            <span class="spacer"></span>
-            ${qtyCtrls}
-          </div>
-          <div class="inv-desc">${desc}</div>
+      <div class="inv-row" data-line="${r.id}">
+        <div class="inv-main">
+          <span class="inv-name" title="${desc}">${name}</span>
+          <span class="inv-meta">${meta}</span>
+          <span class="spacer"></span>
+          ${qtyCtrls}
         </div>
-      `;
+        <div class="inv-desc">${desc}</div>
+      </div>
+    `;
     }
 
     const weapons = rows.filter(isWeapon);
     const armor = rows.filter(isArmor);
     const other = rows.filter((r) => !isWeapon(r) && !isArmor(r));
 
-    const section = (title, list) =>
-      list.length
-        ? `<h4 class="muted" style="margin:8px 0 4px">${title}</h4>` +
-          list.map(renderRow).join('')
-        : '';
+    // Boxed section renderer (like the Money card)
+    const sectionBox = (title, list) => `
+    <div class="box inv-box" style="margin-bottom:12px;">
+      <h4 style="margin:0 0 6px">${title}</h4>
+      ${
+        list.length
+          ? list.map(renderRow).join('')
+          : `<div class="muted">No ${title.toLowerCase()}.</div>`
+      }
+    </div>
+  `;
 
     root.innerHTML =
-      section('Weapons', weapons) +
-      section('Armor', armor) +
-      section('Other', other);
+      sectionBox('Weapons', weapons) +
+      sectionBox('Armor', armor) +
+      sectionBox('Other', other);
+
+    // empty state toggle (if absolutely nothing)
+    if (empty) empty.style.display = rows.length ? 'none' : '';
 
     // actions
     root.querySelectorAll('button[data-action="equip"]').forEach((btn) => {
@@ -213,5 +214,6 @@
 
     return rows;
   }
+
   App.Features.inventory = { load, wireMoneyWidget };
 })(window);
