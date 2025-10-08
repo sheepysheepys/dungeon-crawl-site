@@ -1027,13 +1027,20 @@ async function bootExperiences(chId) {
   }
 }
 
-// ================= INIT =================
+// ================= INIT HOOK (character:ready) =================
 window.addEventListener('character:ready', (e) => {
   const ch = e.detail;
   console.log('[character:ready]', { id: ch?.id });
   renderHP(ch); // one immediate paint
   renderHope(ch);
   App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
+
+  // ensure +/- buttons are wired even if modules hot-reload
+  try {
+    wireHpAndHope();
+  } catch (err) {
+    console.warn('[wireHpAndHope] on character:ready failed', err);
+  }
 });
 
 async function init() {
