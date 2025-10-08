@@ -1120,13 +1120,6 @@ async function init() {
 
   await bootExperiences(c.id);
 
-  // Re-dispatch once so any late-loaded listeners (if script order changes) catch up
-  try {
-    window.dispatchEvent(new CustomEvent('character:ready', { detail: c }));
-  } catch (e) {
-    console.warn('[xp] re-dispatch failed', e);
-  }
-
   setText?.('msg', '');
 }
 
