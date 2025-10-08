@@ -12,7 +12,7 @@
 
   // Model for totals/debug
   let model = {
-    exoCount: 0, // 0..5 (number of slots whose exo_left > 0)
+    exoCount: 0, // 0..5 — slots whose exo_left > 0 (counts even if armor covers it)
     bySlot: Object.fromEntries(
       SLOTS.map((k) => [k, { equipped: 0, wear: 0, exo: 0 }])
     ),
@@ -107,17 +107,21 @@
       };
     }
 
-    // Decide per-slot state: armor (wear>0 & equipped) > exo (exo>0) > none
+    // Compute exoCount from slots that have any exo, regardless of armor coverage
     let exoCount = 0;
+
+    // Decide per-slot state: armor (wear>0 & equipped) > exo (exo>0) > none
     for (const slot of SLOTS) {
       const a = agg[slot] || { wear: 0, equipped: 0, exo: 0 };
       model.bySlot[slot] = { equipped: a.equipped, wear: a.wear, exo: a.exo };
 
+      // Count exo even if armor covers it
+      if (a.exo > 0) exoCount += 1;
+
       if (a.wear > 0 && a.equipped) {
-        colorState[slot] = 'armor';
+        colorState[slot] = 'armor'; // armor visible on top
       } else if (a.exo > 0) {
         colorState[slot] = 'exo';
-        exoCount += 1; // 1 per slot that has any exo
       } else {
         colorState[slot] = 'none';
       }
