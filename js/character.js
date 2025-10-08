@@ -1104,6 +1104,8 @@ async function init() {
   await App.Features.equipment.load(c.id);
   await App.Features.equipment.computeAndRenderArmor(c.id);
   await App.Features.abilities.render?.(c.id);
+  await App.Features.inventory.wireMoneyWidget?.();
+
   await renderActiveWeapons();
   await populateNonEquipPicker();
 

@@ -16,6 +16,74 @@
     );
   }
 
+  async function wireMoneyWidget() {
+    const sb = window.sb;
+    const chId = window.AppState?.character?.id;
+    if (!sb || !chId) return;
+
+    // find or create the Credits item (non-equip)
+    async function ensureCredits() {
+      const { data } = await sb
+        .from('items')
+        .select('id,name')
+        .eq('name', 'Credits')
+        .is('slot', null)
+        .maybeSingle();
+      if (data?.id) return data;
+
+      const { data: ins } = await sb
+        .from('items')
+        .insert({
+          name: 'Credits',
+          slot: null,
+          notes: 'Universal currency.',
+          rarity: 'common',
+          drop_eligible: false,
+        })
+        .select('id,name')
+        .single();
+      return ins;
+    }
+
+    const credits = await ensureCredits();
+    if (!credits?.id) return;
+
+    async function readBalance() {
+      const { data } = await sb
+        .from('character_items')
+        .select('qty')
+        .eq('character_id', chId)
+        .eq('item_id', credits.id)
+        .maybeSingle();
+      return Math.max(0, Number(data?.qty || 0));
+    }
+
+    async function changeBalance(delta) {
+      await App.Logic.inventory.addById(sb, chId, credits.id, delta);
+      document.getElementById('moneyAmount').textContent = String(
+        await readBalance()
+      );
+    }
+
+    // paint + wire
+    document.getElementById('moneyCard').style.display = '';
+    document.getElementById('moneyAmount').textContent = String(
+      await readBalance()
+    );
+    document
+      .getElementById('btnMoneyMinus10')
+      ?.addEventListener('click', () => changeBalance(-10));
+    document
+      .getElementById('btnMoneyMinus1')
+      ?.addEventListener('click', () => changeBalance(-1));
+    document
+      .getElementById('btnMoneyPlus1')
+      ?.addEventListener('click', () => changeBalance(+1));
+    document
+      .getElementById('btnMoneyPlus10')
+      ?.addEventListener('click', () => changeBalance(+10));
+  }
+
   // Loads and renders inventory with right-hand description from items.notes
   async function load(characterId, handlers = {}) {
     const client = global.sb;
@@ -145,6 +213,5 @@
 
     return rows;
   }
-
-  App.Features.inventory = { load };
+  App.Features.inventory = { load, wireMoneyWidget };
 })(window);
