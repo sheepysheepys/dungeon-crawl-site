@@ -1025,6 +1025,78 @@ async function bootExperiences(chId) {
   }
 }
 
+function lockThresholdLabels() {
+  const getT = () => {
+    const ch = window.AppState?.character || {};
+    const toNum = (v) => (v === '' || v == null ? NaN : Number(v));
+    const hasNum = (v) => Number.isFinite(toNum(v));
+    const t1 = hasNum(ch.dmg_t1)
+      ? toNum(ch.dmg_t1)
+      : hasNum(ch.dmg_minor)
+      ? toNum(ch.dmg_minor)
+      : 7;
+    const t2r = hasNum(ch.dmg_t2)
+      ? toNum(ch.dmg_t2)
+      : hasNum(ch.dmg_major)
+      ? toNum(ch.dmg_major)
+      : 14;
+    const t2 = Math.max(t1 + 1, t2r);
+    return { t1, t2 };
+  };
+
+  const paint = () => {
+    const { t1, t2 } = getT();
+    document.getElementById('t1Val')?.replaceChildren(String(t1));
+    document.getElementById('t2Low')?.replaceChildren(String(t1 + 1));
+    document.getElementById('t2Val')?.replaceChildren(String(t2));
+    document.getElementById('t3Low')?.replaceChildren(String(t2 + 1));
+  };
+
+  // Paint now and on any later mutation to those nodes
+  paint();
+
+  const targets = ['t1Val', 't2Low', 't2Val', 't3Low']
+    .map((id) => document.getElementById(id))
+    .filter(Boolean);
+
+  const mo = new MutationObserver((muts) => {
+    // repaint to correct values
+    paint();
+    // log the first offending change for debugging
+    const first = muts.find((m) => m.type === 'childList');
+    if (first && !window.__threshWarnedOnce) {
+      window.__threshWarnedOnce = true;
+      console.warn(
+        '[thresholds] Overwritten by another script; repainted. Check callers that touch #dmgLegend or spans t1/t2...'
+      );
+      // Optional: show stack traces for future writes
+      try {
+        const desc = Object.getOwnPropertyDescriptor(
+          Node.prototype,
+          'textContent'
+        );
+        targets.forEach((el) =>
+          Object.defineProperty(el, 'textContent', {
+            configurable: true,
+            get() {
+              return desc.get.call(this);
+            },
+            set(v) {
+              console.trace('[THRESH SET]', this.id, '→', v);
+              desc.set.call(this, v);
+            },
+          })
+        );
+      } catch {}
+    }
+  });
+
+  targets.forEach((el) => mo.observe(el, { childList: true }));
+  // also observe the container in case something replaces the spans entirely
+  const cont = document.getElementById('dmgLegend');
+  if (cont) mo.observe(cont, { childList: true, subtree: true });
+}
+
 // ================= INIT =================
 window.addEventListener('character:ready', (e) => {
   const ch = e.detail;
