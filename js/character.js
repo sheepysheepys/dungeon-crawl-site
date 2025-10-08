@@ -89,10 +89,7 @@ function renderHP(ch) {
   const elCur = document.getElementById('hpCurrent');
   const elTot = document.getElementById('hpTotal');
   const elBar = document.getElementById('hpBar');
-  if (!elCur || !elTot || !elBar) {
-    console.warn('[HP] missing DOM');
-    return;
-  }
+  if (!elCur || !elTot || !elBar) return;
 
   const toNum = (v) => (v === '' || v == null ? NaN : Number(v));
   const hasNum = (v) => Number.isFinite(toNum(v));
@@ -101,9 +98,8 @@ function renderHP(ch) {
   const current = Math.max(0, Math.min(total, toNum(ch?.hp_current) || 0));
   elCur.textContent = String(current);
   elTot.textContent = String(total);
-
-  const pct = total > 0 ? (current / total) * 100 : 0;
-  elBar.style.width = pct.toFixed(2) + '%';
+  elBar.style.width =
+    (total > 0 ? (current / total) * 100 : 0).toFixed(2) + '%';
 
   const t1 = hasNum(ch?.dmg_t1)
     ? toNum(ch.dmg_t1)
@@ -119,7 +115,6 @@ function renderHP(ch) {
 
   const t2 = Math.max(t1 + 1, t2Raw);
 
-  // write to UI (replaceChildren helps beat other writers)
   document.getElementById('t1Val')?.replaceChildren(String(t1));
   document.getElementById('t2Low')?.replaceChildren(String(t1 + 1));
   document.getElementById('t2Val')?.replaceChildren(String(t2));
@@ -1036,6 +1031,10 @@ window.addEventListener('character:ready', (e) => {
   console.log('[character:ready]', { id: ch?.id });
   renderHP(ch);
   renderHope(ch);
+  requestAnimationFrame(() => {
+    renderHP(ch);
+    lockThresholdLabels();
+  });
   App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
 });
 
