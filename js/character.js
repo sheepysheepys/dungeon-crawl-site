@@ -380,6 +380,7 @@ async function handleAbilityOnEquip(item, slot) {
   });
 }
 
+// ---- EQUIP with wear persistence (drop-in) ----
 const EQUIP_BEHAVIOR = 'swap'; // 'swap' | 'fail'
 
 async function equipFromInventory(lineId) {
@@ -426,7 +427,7 @@ async function equipFromInventory(lineId) {
     }
   }
 
-  // 3) Read current slot row (to preserve exo & get fallback wear)
+  // 3) Read current slot row (so we can cache outgoing wear)
   const { data: curRow } = await sb
     .from('character_equipment')
     .select('id, item_id, exo_left, slots_remaining, slot')
@@ -434,12 +435,25 @@ async function equipFromInventory(lineId) {
     .eq('slot', targetSlot)
     .maybeSingle();
 
-  // 4) If occupied → swap or fail
+  // 4) If an item is currently equipped in that slot, cache its wear before replacing
   if (curRow?.item_id) {
+    // Persist the exact wear for the outgoing item
+    try {
+      await upsertWearRow(
+        sb,
+        chId,
+        curRow.item_id,
+        curRow.slots_remaining ?? 0
+      );
+    } catch (e) {
+      console.warn('[equip] wear cache (outgoing) failed', e);
+    }
+
     if (EQUIP_BEHAVIOR === 'fail') {
       setText?.('msg', `Cannot equip: ${targetSlot} is occupied.`);
       return;
     }
+    // Put the outgoing item back into inventory
     await App.Logic.inventory.addById(sb, chId, curRow.item_id, +1);
   }
 
@@ -451,22 +465,18 @@ async function equipFromInventory(lineId) {
     await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
   }
 
-  // 6) Determine armor slots remaining with robust fallback
-  const armorCap = Number(item?.armor_value ?? 0) || 0;
+  // 6) Determine slots_remaining for the *incoming* item
+  const armorCap = Math.max(0, Number(item?.armor_value ?? 0));
   let slotsRemainingToUse = 0;
+
   if (isArmorSlot) {
-    const wearLeft = await readWearRow(sb, chId, item.id); // (1) prefer cache
-    if (wearLeft != null) {
-      slotsRemainingToUse = wearLeft;
-    } else if (curRow && Number.isFinite(curRow.slots_remaining)) {
-      // (2) fallback: previous slot value
-      // If you want to treat "different item in same slot" as reset, comment next line and set to armorCap instead
-      slotsRemainingToUse = Math.min(
-        armorCap,
-        Math.max(0, Number(curRow.slots_remaining))
-      );
+    // Prefer cached wear for this (character,item), else full cap
+    const cachedWear = await readWearRow(sb, chId, item.id);
+    if (cachedWear != null) {
+      // clamp between 0 and cap
+      slotsRemainingToUse = Math.min(armorCap, Math.max(0, Number(cachedWear)));
     } else {
-      slotsRemainingToUse = armorCap; // (3) new slot, full cap
+      slotsRemainingToUse = armorCap; // first time wearing it
     }
   }
 
@@ -482,7 +492,7 @@ async function equipFromInventory(lineId) {
       slot: targetSlot,
       item_id: item.id,
       slots_remaining: slotsRemainingToUse,
-      exo_left: isArmorSlot ? 1 : 0, // seed exo row for armor
+      exo_left: isArmorSlot ? 1 : 0,
     });
   }
 
@@ -493,10 +503,10 @@ async function equipFromInventory(lineId) {
     console.warn('[equip] ability hook', e);
   }
 
-  // 9) Clear wear cache (non-fatal)
-  await deleteWearRow(sb, chId, item.id);
+  // IMPORTANT: do NOT delete the wear row here. Leaving it lets inventory show wear.
+  // await deleteWearRow(sb, chId, item.id); // ← leave commented out
 
-  // 10) Repaint
+  // 9) Repaint
   await App?.Features?.equipment?.load?.(chId);
   await App?.Features?.equipment?.computeAndRenderArmor?.(chId);
   await App?.Features?.inventory?.load?.(chId, {

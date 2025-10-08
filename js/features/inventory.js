@@ -16,80 +16,43 @@
     );
   }
 
-  async function wireMoneyWidget() {
-    const sb = window.sb;
-    const chId = window.AppState?.character?.id;
-    if (!sb || !chId) return;
+  // ---- helper to fetch wear maps for this character ----
+  async function fetchWearMaps(sb, chId) {
+    // what’s currently equipped (authoritative while worn)
+    const { data: eqRows = [] } = await sb
+      .from('character_equipment')
+      .select('slot,item_id,slots_remaining')
+      .eq('character_id', chId);
 
-    // find or create the Credits item (non-equip)
-    async function ensureCredits() {
-      const { data } = await sb
-        .from('items')
-        .select('id,name')
-        .eq('name', 'Credits')
-        .is('slot', null)
-        .maybeSingle();
-      if (data?.id) return data;
+    // cached wear when not equipped
+    const { data: wearRows = [] } = await sb
+      .from('character_item_wear')
+      .select('item_id,armor_left')
+      .eq('character_id', chId);
 
-      const { data: ins } = await sb
-        .from('items')
-        .insert({
-          name: 'Credits',
-          slot: null,
-          notes: 'Universal currency.',
-          rarity: 'common',
-          drop_eligible: false,
-        })
-        .select('id,name')
-        .single();
-      return ins;
+    const equippedWear = new Map();
+    for (const r of eqRows || []) {
+      if (r.item_id != null && Number.isFinite(Number(r.slots_remaining))) {
+        equippedWear.set(String(r.item_id), Number(r.slots_remaining));
+      }
     }
 
-    const credits = await ensureCredits();
-    if (!credits?.id) return;
-
-    async function readBalance() {
-      const { data } = await sb
-        .from('character_items')
-        .select('qty')
-        .eq('character_id', chId)
-        .eq('item_id', credits.id)
-        .maybeSingle();
-      return Math.max(0, Number(data?.qty || 0));
+    const cachedWear = new Map();
+    for (const r of wearRows || []) {
+      if (r.item_id != null && Number.isFinite(Number(r.armor_left))) {
+        cachedWear.set(String(r.item_id), Number(r.armor_left));
+      }
     }
-
-    async function changeBalance(delta) {
-      await App.Logic.inventory.addById(sb, chId, credits.id, delta);
-      document.getElementById('moneyAmount').textContent = String(
-        await readBalance()
-      );
-    }
-
-    // paint + wire
-    document.getElementById('moneyCard').style.display = '';
-    document.getElementById('moneyAmount').textContent = String(
-      await readBalance()
-    );
-    document
-      .getElementById('btnMoneyMinus10')
-      ?.addEventListener('click', () => changeBalance(-10));
-    document
-      .getElementById('btnMoneyMinus1')
-      ?.addEventListener('click', () => changeBalance(-1));
-    document
-      .getElementById('btnMoneyPlus1')
-      ?.addEventListener('click', () => changeBalance(+1));
-    document
-      .getElementById('btnMoneyPlus10')
-      ?.addEventListener('click', () => changeBalance(+10));
+    return { equippedWear, cachedWear };
   }
 
-  // Loads and renders inventory with right-hand description from items.notes
+  // Loads and renders inventory with right-hand description and armor wear
   async function load(characterId, handlers = {}) {
-    const client = global.sb;
-    if (!client) return [];
+    const sb = global.sb;
+    if (!sb) return [];
 
-    const { data, error } = await client
+    // Pull inventory (include notes/rarity for meta)
+    const { data, error } = await sb
       .from('character_items')
       .select(
         'id,item_id,qty,item:items(id,name,slot,damage,armor_value,ability_id,rarity,notes)'
@@ -102,19 +65,49 @@
       return [];
     }
 
+    // Fetch wear maps once
+    const { equippedWear, cachedWear } = await fetchWearMaps(sb, characterId);
+
     const rows = data || [];
     const root = document.querySelector('#inventoryAllList');
     const empty = document.querySelector('#inventoryEmpty');
     if (!root) return rows;
 
-    // --- helpers ---
+    if (!rows.length) {
+      root.innerHTML = '';
+      if (empty) empty.style.display = '';
+      return rows;
+    }
+    if (empty) empty.style.display = 'none';
+
     const ARMOR_SLOTS = new Set(['head', 'chest', 'legs', 'hands', 'feet']);
     const isWeapon = (r) =>
       r.item?.slot === 'weapon' || r.item?.slot === 'offhand';
     const isArmor = (r) => ARMOR_SLOTS.has(r.item?.slot);
     const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : '');
 
-    // New two-column row
+    function wearInfoFor(it) {
+      // Only for armor items
+      if (!it || !ARMOR_SLOTS.has(it.slot)) return null;
+
+      const capVal = Math.max(0, Number(it.armor_value || 0));
+      const key = String(it.id);
+
+      // Prefer current equipped wear if this item is currently worn
+      let left = equippedWear.has(key) ? equippedWear.get(key) : null;
+
+      // Else fall back to cached wear
+      if (left == null && cachedWear.has(key)) left = cachedWear.get(key);
+
+      // Else assume pristine (full cap)
+      if (left == null) left = capVal;
+
+      // clamp
+      left = Math.max(0, Math.min(capVal, Number(left)));
+      return { left, cap: capVal };
+    }
+
+    // New two-column row with wear line for armor
     function renderRow(r) {
       const it = r.item || {};
       const equippable = !!it.slot;
@@ -131,59 +124,73 @@
 
       const desc = it.notes ? escapeHtml(it.notes) : 'No description.';
 
+      // Wear pill + bar (armor only)
+      const wear = wearInfoFor(it);
+      const wearPill = wear
+        ? `<span class="pill mono" style="margin-left:6px">Wear ${wear.left}/${wear.cap}</span>`
+        : '';
+      const wearBar =
+        wear && wear.cap > 0
+          ? `<div class="wearbar" style="height:4px; background:var(--line2,#ddd); border-radius:4px; margin-top:6px;">
+               <div class="fill" style="height:100%; width:${(
+                 (wear.left / wear.cap) *
+                 100
+               ).toFixed(
+                 0
+               )}%; background:var(--ok,#3ba776); border-radius:4px;"></div>
+             </div>`
+          : '';
+
       const qtyCtrls = `
-      <div class="inv-actions">
-        <button class="btn-tiny" data-action="dec" data-item="${
-          r.item_id
-        }">−1</button>
-        <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
-        <button class="btn-tiny" data-action="inc" data-item="${
-          r.item_id
-        }">+1</button>
-        ${
-          equippable
-            ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
-            : ``
-        }
-      </div>
-    `;
+        <div class="inv-actions">
+          <button class="btn-tiny" data-action="dec" data-item="${
+            r.item_id
+          }">−1</button>
+          <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+          <button class="btn-tiny" data-action="inc" data-item="${
+            r.item_id
+          }">+1</button>
+          ${
+            equippable
+              ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
+              : ``
+          }
+        </div>
+      `;
 
       return `
-      <div class="inv-row" data-line="${r.id}">
-        <div class="inv-main">
-          <span class="inv-name" title="${desc}">${name}</span>
-          <span class="inv-meta">${meta}</span>
-          <span class="spacer"></span>
-          ${qtyCtrls}
+        <div class="inv-row" data-line="${r.id}">
+          <div class="inv-main">
+            <span class="inv-name" title="${desc}">${name}</span>
+            <span class="inv-meta">${meta}</span>
+            ${wearPill}
+            <span class="spacer"></span>
+            ${qtyCtrls}
+          </div>
+          <div class="inv-desc">
+            ${desc}
+            ${wearBar}
+          </div>
         </div>
-        <div class="inv-desc">${desc}</div>
-      </div>
-    `;
+      `;
     }
 
     const weapons = rows.filter(isWeapon);
     const armor = rows.filter(isArmor);
     const other = rows.filter((r) => !isWeapon(r) && !isArmor(r));
 
-    // Boxed section renderer (like the Money card)
-    const sectionBox = (title, list) => `
-    <div class="box inv-box" style="margin-bottom:12px;">
-      <h4 style="margin:0 0 6px">${title}</h4>
-      ${
-        list.length
-          ? list.map(renderRow).join('')
-          : `<div class="muted">No ${title.toLowerCase()}.</div>`
-      }
-    </div>
-  `;
+    const section = (title, list) =>
+      list.length
+        ? `<div class="card" style="margin:12px 0; padding:10px 12px;">
+             <h4 style="margin:0 0 6px">${title}</h4>
+             ${list.map(renderRow).join('')}
+           </div>`
+        : '';
 
     root.innerHTML =
-      sectionBox('Weapons', weapons) +
-      sectionBox('Armor', armor) +
-      sectionBox('Other', other);
-
-    // empty state toggle (if absolutely nothing)
-    if (empty) empty.style.display = rows.length ? 'none' : '';
+      section('Weapons', weapons) +
+      section('Armor', armor) +
+      section('Other', other);
 
     // actions
     root.querySelectorAll('button[data-action="equip"]').forEach((btn) => {
@@ -215,5 +222,5 @@
     return rows;
   }
 
-  App.Features.inventory = { load, wireMoneyWidget };
+  App.Features.inventory = { load };
 })(window);
