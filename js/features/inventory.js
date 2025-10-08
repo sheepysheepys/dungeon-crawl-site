@@ -124,55 +124,41 @@
 
       const desc = it.notes ? escapeHtml(it.notes) : 'No description.';
 
-      // Wear pill + bar (armor only)
+      // ✅ Wear pill only (no green bar)
       const wear = wearInfoFor(it);
       const wearPill = wear
         ? `<span class="pill mono" style="margin-left:6px">Wear ${wear.left}/${wear.cap}</span>`
         : '';
-      const wearBar =
-        wear && wear.cap > 0
-          ? `<div class="wearbar" style="height:4px; background:var(--line2,#ddd); border-radius:4px; margin-top:6px;">
-               <div class="fill" style="height:100%; width:${(
-                 (wear.left / wear.cap) *
-                 100
-               ).toFixed(
-                 0
-               )}%; background:var(--ok,#3ba776); border-radius:4px;"></div>
-             </div>`
-          : '';
 
       const qtyCtrls = `
-        <div class="inv-actions">
-          <button class="btn-tiny" data-action="dec" data-item="${
-            r.item_id
-          }">−1</button>
-          <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
-          <button class="btn-tiny" data-action="inc" data-item="${
-            r.item_id
-          }">+1</button>
-          ${
-            equippable
-              ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
-              : ``
-          }
-        </div>
-      `;
+    <div class="inv-actions">
+      <button class="btn-tiny" data-action="dec" data-item="${
+        r.item_id
+      }">−1</button>
+      <span class="mono" style="min-width:2ch; text-align:center; display:inline-block">${qty}</span>
+      <button class="btn-tiny" data-action="inc" data-item="${
+        r.item_id
+      }">+1</button>
+      ${
+        equippable
+          ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
+          : ``
+      }
+    </div>
+  `;
 
       return `
-        <div class="inv-row" data-line="${r.id}">
-          <div class="inv-main">
-            <span class="inv-name" title="${desc}">${name}</span>
-            <span class="inv-meta">${meta}</span>
-            ${wearPill}
-            <span class="spacer"></span>
-            ${qtyCtrls}
-          </div>
-          <div class="inv-desc">
-            ${desc}
-            ${wearBar}
-          </div>
-        </div>
-      `;
+    <div class="inv-row" data-line="${r.id}">
+      <div class="inv-main">
+        <span class="inv-name" title="${desc}">${name}</span>
+        <span class="inv-meta">${meta}</span>
+        ${wearPill}
+        <span class="spacer"></span>
+        ${qtyCtrls}
+      </div>
+      <div class="inv-desc">${desc}</div>
+    </div>
+  `;
     }
 
     const weapons = rows.filter(isWeapon);
