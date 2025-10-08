@@ -275,15 +275,14 @@
   }
 
   function renderLoot(boxes) {
-    const pendingWrap = $('#lootList');
+    const pendingWrap = document.getElementById('lootList');
     const openedWrap = ensureOpenedSection();
-    const badge = $('#lootBadge');
+    const badge = document.getElementById('lootBadge');
 
-    const unopened = boxes.filter(
-      (b) => b.status === 'unopened' || b.status === 'pending'
-    );
-    const opened = boxes.filter((b) => b.status === 'opened');
+    const unopened = (boxes || []).filter((b) => b.status === 'unopened');
+    const opened = (boxes || []).filter((b) => b.status === 'opened');
 
+    // Badge
     if (badge) {
       if (unopened.length > 0) {
         badge.textContent = String(unopened.length);
@@ -294,7 +293,7 @@
       }
     }
 
-    // Pending
+    // ----- Unopened list (unchanged) -----
     if (pendingWrap) {
       if (!unopened.length) {
         pendingWrap.innerHTML = `<div class="muted">No unopened boxes.</div>`;
@@ -302,25 +301,24 @@
         pendingWrap.innerHTML = unopened
           .map(
             (b) => `
-          <div class="row" data-loot-row="${b.id}">
-            <div>
-              <div><strong>${(
-                b.label ||
-                `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-              ).replace(/[<>&]/g, '')}</strong></div>
-              <div class="muted">${fmt(b.created_at)}</div>
-            </div>
-            <div><button class="btn btn-accent" data-open-loot="${
-              b.id
-            }">Open</button></div>
+        <div class="row" data-loot-row="${b.id}">
+          <div>
+            <div><strong>${(
+              b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
+            ).replace(/[<>&]/g, '')}</strong></div>
+            <div class="muted">${fmt(b.created_at)}</div>
           </div>
-        `
+          <div><button class="btn btn-accent" data-open-loot="${
+            b.id
+          }">Open</button></div>
+        </div>
+      `
           )
           .join('');
       }
     }
 
-    // Opened (expandable details)
+    // ----- Opened list (header shows only box label once; items only inside dropdown) -----
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
@@ -334,15 +332,6 @@
               b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
             ).replace(/[<>&]/g, '');
 
-            const summary =
-              revealed
-                .map((it) => {
-                  const name = it.item_name ?? `Item ${it.item_id}`;
-                  const qty = it.qty ?? 1;
-                  return `${name} x${qty}`;
-                })
-                .join(' • ') || 'No items';
-
             const chips = revealed
               .map((it) => {
                 const name =
@@ -351,38 +340,41 @@
                 const qty = it.qty ?? 1;
                 const drop = it.drop_rarity ?? 'common';
                 return `
-          <span class="loot-chip">
-            <span class="name">${String(name).replace(/[<>&]/g, '')}</span>
-            <span class="qty pill">x${qty}</span>
-            <span class="pill rar rarity-${drop}">${drop}</span>
-          </span>`;
+            <span class="loot-chip">
+              <span class="name">${String(name).replace(/[<>&]/g, '')}</span>
+              <span class="qty pill">x${qty}</span>
+              <span class="pill rar rarity-${drop}">${drop}</span>
+            </span>`;
               })
               .join('');
 
             const id = `opened-${b.id}`;
             return `
-        <div id="${id}" class="row expandable" data-expand="${id}" role="button" aria-expanded="false"
-             style="flex-direction:column; align-items:stretch;">
-          <div class="row" style="justify-content:space-between; border-bottom:none; padding:0;">
-            <div>
-              <strong>${boxTitle}</strong>
-              <span class="pill">${b.rarity}</span>
-              <span class="chev" aria-hidden="true"></span>
-              <span class="muted openhide-label" style="margin-left:6px">Open</span>
+          <div id="${id}" class="row expandable" data-expand="${id}" role="button" aria-expanded="false"
+               style="flex-direction:column; align-items:stretch;">
+            <div class="row" style="justify-content:space-between; border-bottom:none; padding:0;">
+              <div>
+                <strong>${boxTitle}</strong>
+                <span class="chev" aria-hidden="true"></span>
+                <span class="muted openhide-label" style="margin-left:6px">Open</span>
+              </div>
+              <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
             </div>
-            <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
+
+            <!-- No summary line here anymore -->
+
+            <!-- full details (chips), hidden until expanded) -->
+            <div class="details" style="display:none; margin-top:6px">
+              <div class="loot-chips">
+                ${chips || `<span class="muted">No snapshot found.</span>`}
+              </div>
+            </div>
           </div>
-          <div class="summary-line">${summary}</div>
-          <div class="details" style="display:none; margin-top:6px">
-            <div class="loot-chips">${
-              chips || `<span class="muted">No snapshot found.</span>`
-            }</div>
-          </div>
-        </div>
-      `;
+        `;
           })
           .join('');
 
+        // expand/collapse
         openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
           row.addEventListener('click', (e) => {
             if (e.target.closest('button,a')) return;
@@ -401,7 +393,7 @@
       }
     }
 
-    // Wire Open buttons
+    // Wire Open buttons (unchanged)
     if (pendingWrap) {
       pendingWrap.querySelectorAll('[data-open-loot]').forEach((btn) => {
         btn.addEventListener('click', async () => {
