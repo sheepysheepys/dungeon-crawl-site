@@ -6,10 +6,6 @@
 
   const $ = (s) => document.querySelector(s);
   const $$ = (s) => Array.from(document.querySelectorAll(s));
-  const num = (el) =>
-    el
-      ? parseInt(String(el.textContent || '').replace(/[^\d-]/g, ''), 10) || 0
-      : 0;
 
   // Map equip slots 1:1 to silhouette slots
   const EQUIP_TO_SIL = {
@@ -20,11 +16,19 @@
     feet: 'feet',
   };
 
-  // Current visual state per slot
-  const colorState = Object.fromEntries(SLOTS.map((k) => [k, 'none'])); // 'armor' | 'exo' | 'none'
+  // Current visual state per slot: 'armor' | 'exo' | 'none'
+  const colorState = Object.fromEntries(SLOTS.map((k) => [k, 'none']));
 
+  // A tiny model so we can compute totals without scraping DOM
+  let model = {
+    exoAny: 0, // 1 if any exo_left > 0 on any slot
+    bySlot: Object.fromEntries(
+      SLOTS.map((k) => [k, { equipped: 0, wear: 0, exo: 0 }])
+    ),
+  };
+
+  // ----- low-level painters -----
   function nodesFor(slot) {
-    // The ONLY selector we rely on. Keep it simple.
     return $$('.silhouette .overlay .slot-region[data-slot="' + slot + '"]');
   }
 
@@ -41,29 +45,30 @@
       const st = colorState[slot] || 'none';
       const title = `${slot.toUpperCase()}: ${st}`;
       nodes.forEach((n) => setStateOnNode(n, st, title));
-
-      // Debug if SVG is missing a region
       if (nodes.length === 0) {
-        console.warn(`[silhouette] No SVG nodes with data-slot="${slot}"`);
+        // Helpful once; comment out if noisy
+        // console.warn(`[silhouette] No SVG nodes with data-slot="${slot}"`);
       }
     }
   }
 
   function paintTotals() {
-    const exoLeft = num($('#exoOn'));
+    // Armor “count” = number of slots that currently show armor
     const armorCount = SLOTS.reduce(
       (n, k) => n + (colorState[k] === 'armor' ? 1 : 0),
       0
     );
+
+    const exoLeft = model.exoAny ? 1 : 0; // you can change this if you track per-slot exo pips later
     const total = exoLeft + armorCount;
 
-    const exoEl = $('#silExoLeft');
-    if (exoEl) exoEl.textContent = String(exoLeft);
-    const armEl = $('#silArmorCount');
-    if (armEl) armEl.textContent = String(armorCount);
-    const totEl = $('#silProtectionTotal');
-    if (totEl) totEl.textContent = String(total);
+    $('#silExoLeft') && ($('#silExoLeft').textContent = String(exoLeft));
+    $('#silArmorCount') &&
+      ($('#silArmorCount').textContent = String(armorCount));
+    $('#silProtectionTotal') &&
+      ($('#silProtectionTotal').textContent = String(total));
 
+    // Optional pips (if you have exactly one exo pip to show)
     $$('.totals .pips .pip').forEach((p, i) =>
       p.classList.toggle('filled', i < exoLeft)
     );
@@ -74,33 +79,83 @@
     paintTotals();
   }
 
-  // Public: drive from equipment rows (truth from DB)
-  // rows: [{ slot, slots_remaining, exo_left }, ...]
+  // ----- PUBLIC: drive from equipment rows (truth from DB) -----
+  // rows: [{ slot, item_id, slots_remaining, exo_left }, ...]
   function updateFromEquipmentRows(rows) {
-    // reset
+    // reset model and state
+    model = {
+      exoAny: 0,
+      bySlot: Object.fromEntries(
+        SLOTS.map((k) => [k, { equipped: 0, wear: 0, exo: 0 }])
+      ),
+    };
     SLOTS.forEach((k) => (colorState[k] = 'none'));
 
-    // aggregate by slot
     const by = {};
     (rows || []).forEach((r) => {
       const sil = EQUIP_TO_SIL[r.slot];
       if (!sil) return;
-      const seg = Math.max(0, Number(r?.slots_remaining || 0));
+      const wear = Math.max(0, Number(r?.slots_remaining || 0)); // your “armor slots left”
       const exo = Number(r?.exo_left || 0) > 0 ? 1 : 0;
-      const cur = by[sil] || { seg: 0, exo: 0 };
-      by[sil] = { seg: Math.max(cur.seg, seg), exo: Math.max(cur.exo, exo) };
+      const equipped = !!r?.item_id;
+
+      const cur = by[sil] || { wear: 0, exo: 0, equipped: 0 };
+      by[sil] = {
+        wear: Math.max(cur.wear, wear),
+        exo: Math.max(cur.exo, exo),
+        equipped: Math.max(cur.equipped, equipped ? 1 : 0),
+      };
     });
 
-    // decide: armor > exo > none
+    // decide: armor (wear>0) > exo > none
     SLOTS.forEach((sil) => {
-      const a = by[sil] || { seg: 0, exo: 0 };
-      colorState[sil] = a.seg > 0 ? 'armor' : a.exo > 0 ? 'exo' : 'none';
+      const a = by[sil] || { wear: 0, exo: 0, equipped: 0 };
+      model.bySlot[sil] = { equipped: a.equipped, wear: a.wear, exo: a.exo };
+      colorState[sil] = a.wear > 0 ? 'armor' : a.exo > 0 ? 'exo' : 'none';
+      if (a.exo > 0) model.exoAny = 1;
     });
 
     updateAll();
   }
 
-  // tiny console helper
+  // ----- OPTIONAL: query + subscribe helpers (robustness) -----
+  async function refresh(sb, chId) {
+    try {
+      const { data = [], error } = await sb
+        .from('character_equipment')
+        .select('slot, item_id, slots_remaining, exo_left')
+        .eq('character_id', chId)
+        .in('slot', SLOTS);
+
+      if (error) throw error;
+      updateFromEquipmentRows(data);
+    } catch (e) {
+      console.warn('[silhouette] refresh error', e);
+    }
+  }
+
+  let _chan = null;
+  function subscribe(sb, chId) {
+    if (!sb || !chId) return;
+    try {
+      if (_chan) sb.removeChannel(_chan);
+    } catch {}
+    _chan = sb
+      .channel('silhouette:' + chId)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'character_equipment',
+          filter: `character_id=eq.${chId}`,
+        },
+        () => refresh(sb, chId)
+      )
+      .subscribe();
+  }
+
+  // tiny console helper (kept)
   window.__silAudit = function (detail = false) {
     const out = {};
     for (const s of SLOTS) {
@@ -122,18 +177,17 @@
     return out;
   };
 
+  // init keeps just a first paint (no DOM observers needed)
   function init() {
     updateAll();
-    const exoNode = $('#exoOn');
-    if (exoNode)
-      new MutationObserver(paintTotals).observe(exoNode, {
-        characterData: true,
-        childList: true,
-        subtree: true,
-      });
   }
 
   document.addEventListener('DOMContentLoaded', init);
 
-  window.App.Features.EquipmentSilhouette = { updateFromEquipmentRows, init };
+  window.App.Features.EquipmentSilhouette = {
+    updateFromEquipmentRows,
+    refresh, // call after equip/unequip for instant repaint
+    subscribe, // optional: realtime repaint
+    init,
+  };
 })();

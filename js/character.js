@@ -1046,6 +1046,7 @@ async function init() {
     return;
   }
 
+  // ---- auth ----
   const { data: { user } = {}, error: userErr } = await client.auth.getUser();
   console.log('[auth] getUser', { user, userErr });
   if (!user) {
@@ -1053,6 +1054,7 @@ async function init() {
     return;
   }
 
+  // ---- character ----
   const { data: c, error: charErr } = await client
     .from('characters')
     .select(
@@ -1069,9 +1071,9 @@ async function init() {
   }
 
   window.AppState.user = user;
-  setCharacter(c); // fires character:ready (best-effort)
+  setCharacter(c); // fires character:ready
 
-  // stats (traits)
+  // ---- stats (traits) ----
   try {
     const { data: statsRow, error: statsErr } = await client
       .from('character_stats')
@@ -1084,11 +1086,11 @@ async function init() {
     console.warn('[stats] unexpected', e);
   }
 
-  // realtime + initial awards/loot render
+  // ---- awards & loot (initial + realtime) ----
   subscribeAwardsAndLoot(c.id);
   await renderAwardsAndLoot(c.id);
 
-  // header/meta
+  // ---- header/meta ----
   setText?.('charName', c.name ?? '—');
   setText?.('charRace', c.race ?? '—');
   setText?.('charClass', c['class'] ?? '—');
@@ -1106,30 +1108,57 @@ async function init() {
   const notesEl = document.getElementById('notes');
   if (notesEl) notesEl.value = c.notes ?? '';
 
-  // features
+  // ---- features (inventory/equipment first) ----
   await App.Features.inventory.load(c.id, {
     onEquip: equipFromInventory,
     onAdjustQty: adjustNonEquipQty,
   });
   await App.Features.equipment.load(c.id);
+
+  // ensure EXO rows exist BEFORE the first compute/paint
+  await ensureExoRowsForAllSlots();
+
+  // single armor/silhouette compute (this also paints the silhouette internally)
   await App.Features.equipment.computeAndRenderArmor(c.id);
+
+  // optional extras
   await App.Features.abilities.render?.(c.id);
   await App.Features.inventory.wireMoneyWidget?.();
-
   await renderActiveWeapons();
   await populateNonEquipPicker();
 
-  // NEW: wire Rests UI (moved to /js/features/rests-ui.js)
+  // rests UI
   App.Features?.restsUI?.wireRestUI?.();
 
-  // failsafe: ensure exo rows exist (prevents clothing level from dropping to 0)
-  await ensureExoRowsForAllSlots();
-  await App.Features.equipment.computeAndRenderArmor(c.id);
+  // ---- realtime: repaint silhouette & armor on any equipment change ----
+  try {
+    const sb = window.sb;
+    window.AppState = window.AppState || {};
+    if (window.AppState.silChannel) {
+      try {
+        sb.removeChannel(window.AppState.silChannel);
+      } catch {}
+    }
+    window.AppState.silChannel = sb
+      .channel('silhouette:' + c.id)
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // INSERT | UPDATE | DELETE
+          schema: 'public',
+          table: 'character_equipment',
+          filter: `character_id=eq.${c.id}`,
+        },
+        async () => {
+          await App.Features.equipment.computeAndRenderArmor(c.id);
+        }
+      )
+      .subscribe();
+  } catch (e) {
+    console.warn('[silhouette] subscribe failed', e);
+  }
 
-  // ancillary
-  wireLevelUp();
-  wireHpAndHope();
-
+  // ---- XP boot (unchanged) ----
   await bootExperiences(c.id);
 
   setText?.('msg', '');
