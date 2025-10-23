@@ -1168,6 +1168,17 @@ async function init() {
   // ---- XP boot (unchanged) ----
   await bootExperiences(c.id);
 
+  // ---- Level Up wiring (NEW) ----
+  try {
+    if (!window.__WIRED_LEVELUP) {
+      wireLevelUp();
+      window.__WIRED_LEVELUP = true; // guard against double-binding
+    }
+  } catch (e) {
+    console.warn('[levelup] wire failed', e);
+  }
+
+  // ---- final msg ----
   setText?.('msg', '');
 }
 
