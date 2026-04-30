@@ -1,5 +1,5 @@
 // /js/character.js
-console.log('[character] start', {
+console.log("[character] start", {
   hasApp: !!window.App,
   hasInventory: !!window.App?.Features?.inventory,
   hasSb: !!window.sb,
@@ -12,65 +12,65 @@ console.log('[character] start', {
 async function readWearRow(sb, chId, itemId) {
   try {
     const { data, error } = await sb
-      .from('character_item_wear')
-      .select('armor_left')
-      .eq('character_id', chId)
-      .eq('item_id', itemId)
+      .from("character_item_wear")
+      .select("armor_left")
+      .eq("character_id", chId)
+      .eq("item_id", itemId)
       .maybeSingle();
     if (error) throw error;
     return Number.isFinite(data?.armor_left)
       ? Math.max(0, data.armor_left)
       : null;
   } catch (e) {
-    console.warn('[wear] read skipped', e?.code || e?.message || e);
+    console.warn("[wear] read skipped", e?.code || e?.message || e);
     return null;
   }
 }
 async function upsertWearRow(sb, chId, itemId, armorLeft) {
   try {
-    const { error } = await sb.from('character_item_wear').upsert(
+    const { error } = await sb.from("character_item_wear").upsert(
       {
         character_id: chId,
         item_id: itemId,
         armor_left: Math.max(0, Number(armorLeft || 0)),
       },
-      { onConflict: 'character_id,item_id' }
+      { onConflict: "character_id,item_id" },
     );
     if (error) throw error;
   } catch (e) {
-    console.warn('[wear] upsert skipped', e?.code || e?.message || e);
+    console.warn("[wear] upsert skipped", e?.code || e?.message || e);
   }
 }
 async function deleteWearRow(sb, chId, itemId) {
   try {
     const { error } = await sb
-      .from('character_item_wear')
+      .from("character_item_wear")
       .delete()
-      .eq('character_id', chId)
-      .eq('item_id', itemId);
+      .eq("character_id", chId)
+      .eq("item_id", itemId);
     if (error) throw error;
   } catch (e) {
-    console.warn('[wear] delete skipped', e?.code || e?.message || e);
+    console.warn("[wear] delete skipped", e?.code || e?.message || e);
   }
 }
 
 function setCharacter(ch) {
   window.AppState = window.AppState || {};
   window.AppState.character = ch;
-  window.dispatchEvent(new CustomEvent('character:ready', { detail: ch }));
+  window.dispatchEvent(new CustomEvent("character:ready", { detail: ch }));
 }
 
 function escapeHtml(s) {
   return String(s).replace(
     /[&<>"']/g,
     (m) =>
-      ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[
         m
-      ])
+      ],
   );
 }
 function capitalize(s) {
-  return (s || '').charAt(0).toUpperCase() + String(s || '').slice(1);
+  return (s || "").charAt(0).toUpperCase() + String(s || "").slice(1);
 }
 
 // Small utility: wait for a condition (e.g., sb, feature) with timeout
@@ -86,12 +86,12 @@ async function waitFor(condFn, { tries = 40, delayMs = 125 } = {}) {
 
 // ================= RENDERERS =================
 function renderHP(ch) {
-  const elCur = document.getElementById('hpCurrent');
-  const elTot = document.getElementById('hpTotal');
-  const elBar = document.getElementById('hpBar');
+  const elCur = document.getElementById("hpCurrent");
+  const elTot = document.getElementById("hpTotal");
+  const elBar = document.getElementById("hpBar");
   if (!elCur || !elTot || !elBar) return;
 
-  const toNum = (v) => (v === '' || v == null ? NaN : Number(v));
+  const toNum = (v) => (v === "" || v == null ? NaN : Number(v));
   const hasNum = (v) => Number.isFinite(toNum(v));
 
   const total = toNum(ch?.hp_total) || 0;
@@ -99,7 +99,7 @@ function renderHP(ch) {
   elCur.textContent = String(current);
   elTot.textContent = String(total);
   elBar.style.width =
-    (total > 0 ? (current / total) * 100 : 0).toFixed(2) + '%';
+    (total > 0 ? (current / total) * 100 : 0).toFixed(2) + "%";
 
   const t1 = hasNum(ch?.dmg_t1) ? toNum(ch.dmg_t1) : 7;
 
@@ -107,23 +107,23 @@ function renderHP(ch) {
 
   const t2 = Math.max(t1 + 1, t2Raw);
 
-  document.getElementById('t1Val')?.replaceChildren(String(t1));
-  document.getElementById('t2Low')?.replaceChildren(String(t1 + 1));
-  document.getElementById('t2Val')?.replaceChildren(String(t2));
-  document.getElementById('t3Low')?.replaceChildren(String(t2 + 1));
+  document.getElementById("t1Val")?.replaceChildren(String(t1));
+  document.getElementById("t2Low")?.replaceChildren(String(t1 + 1));
+  document.getElementById("t2Val")?.replaceChildren(String(t2));
+  document.getElementById("t3Low")?.replaceChildren(String(t2 + 1));
 }
 
 function renderHope(ch) {
-  const dotsEl = document.getElementById('hopeDots');
+  const dotsEl = document.getElementById("hopeDots");
   if (!dotsEl) {
-    console.warn('[Hope] missing DOM');
+    console.warn("[Hope] missing DOM");
     return;
   }
   const val = Math.max(0, Math.min(5, Number(ch?.hope_points ?? 0)));
   dotsEl.textContent =
-    typeof fmtDots === 'function'
+    typeof fmtDots === "function"
       ? fmtDots(val)
-      : '●'.repeat(val) + '○'.repeat(5 - val);
+      : "●".repeat(val) + "○".repeat(5 - val);
 }
 
 // ================= HP / HOPE MUTATIONS =================
@@ -136,21 +136,21 @@ async function adjustHP(delta) {
   const next = Math.max(0, Math.min(total, Number(ch.hp_current ?? 0) + delta));
 
   const { data, error } = await client
-    .from('characters')
+    .from("characters")
     .update({ hp_current: next })
-    .eq('id', ch.id)
-    .select('id,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe')
+    .eq("id", ch.id)
+    .select("id,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe")
     .single();
 
   if (error) {
-    console.error('[HP] update failed', error);
-    setText?.('msg', 'HP update blocked (auth/RLS?).');
+    console.error("[HP] update failed", error);
+    setText?.("msg", "HP update blocked (auth/RLS?).");
     return;
   }
 
   Object.assign(ch, data);
   renderHP(ch);
-  setText?.('msg', '');
+  setText?.("msg", "");
 }
 
 async function adjustHope(delta) {
@@ -161,21 +161,21 @@ async function adjustHope(delta) {
   const next = Math.max(0, Math.min(5, Number(ch.hope_points ?? 0) + delta));
 
   const { data, error } = await client
-    .from('characters')
+    .from("characters")
     .update({ hope_points: next })
-    .eq('id', ch.id)
-    .select('hope_points')
+    .eq("id", ch.id)
+    .select("hope_points")
     .single();
 
   if (error) {
-    console.error('[Hope] update failed', error);
-    setText?.('msg', 'Hope update blocked (auth/RLS?).');
+    console.error("[Hope] update failed", error);
+    setText?.("msg", "Hope update blocked (auth/RLS?).");
     return;
   }
 
   ch.hope_points = data.hope_points;
   renderHope(ch);
-  setText?.('msg', '');
+  setText?.("msg", "");
 }
 
 window.adjustHP = adjustHP;
@@ -183,7 +183,7 @@ window.adjustHope = adjustHope;
 
 // ================= AWARDS & LOOT =================
 function renderAwardsList(list) {
-  const wrap = document.getElementById('awardsList');
+  const wrap = document.getElementById("awardsList");
   if (!wrap) return;
   if (!list?.length) {
     wrap.innerHTML = `<div class="tinybars">No achievements yet.</div>`;
@@ -199,23 +199,23 @@ function renderAwardsList(list) {
           <div class="meta">${new Date(a.awarded_at).toLocaleString()}</div>
         </div>
         <div></div>
-      </div>`
+      </div>`,
     )
-    .join('');
+    .join("");
 }
 
 function renderLootList(list) {
-  const wrap = document.getElementById('lootList');
-  const badge = document.getElementById('lootBadge');
+  const wrap = document.getElementById("lootList");
+  const badge = document.getElementById("lootBadge");
   if (!wrap) return;
-  const pending = (list || []).filter((x) => x.status === 'pending');
+  const pending = (list || []).filter((x) => x.status === "pending");
 
   if (badge) {
     if (pending.length > 0) {
       badge.textContent = String(pending.length);
-      badge.style.display = '';
+      badge.style.display = "";
     } else {
-      badge.style.display = 'none';
+      badge.style.display = "none";
     }
   }
 
@@ -230,20 +230,20 @@ function renderLootList(list) {
       <div class="row">
         <div>
           <div>${capitalize(lb.rarity)} Box ${
-        lb.status === 'pending' ? '— <em>Unopened</em>' : '— Opened'
-      }</div>
+            lb.status === "pending" ? "— <em>Unopened</em>" : "— Opened"
+          }</div>
           <div class="meta">${new Date(lb.created_at).toLocaleString()}</div>
         </div>
         <div>
           ${
-            lb.status === 'pending'
+            lb.status === "pending"
               ? `<button class="btn-ghost" data-open-loot="${lb.id}">Open</button>`
               : ``
           }
         </div>
-      </div>`
+      </div>`,
     )
-    .join('');
+    .join("");
 }
 
 async function fetchAwardsAndLoot(characterId) {
@@ -251,19 +251,19 @@ async function fetchAwardsAndLoot(characterId) {
 
   // Achievements unchanged
   const { data: achievements = [] } = await client
-    .from('achievements')
-    .select('id, title, description, awarded_at')
-    .eq('character_id', characterId)
-    .order('awarded_at', { ascending: false });
+    .from("achievements")
+    .select("id, title, description, awarded_at")
+    .eq("character_id", characterId)
+    .order("awarded_at", { ascending: false });
 
   // Loot boxes: be defensive about column names
   const { data: lootRaw = [], error: lootErr } = await client
-    .from('loot_boxes')
-    .select('*')
-    .eq('character_id', characterId);
+    .from("loot_boxes")
+    .select("*")
+    .eq("character_id", characterId);
 
   if (lootErr) {
-    console.warn('[loot] fetch error', lootErr);
+    console.warn("[loot] fetch error", lootErr);
   }
 
   const pickDate = (row) =>
@@ -276,15 +276,15 @@ async function fetchAwardsAndLoot(characterId) {
 
   const isOpened = (row) =>
     !!(row.opened_at || row.openedAt) ||
-    String(row.status || '').toLowerCase() === 'opened';
+    String(row.status || "").toLowerCase() === "opened";
 
-  const tier = (row) => row.tier || row.rarity || row.box_tier || 'common';
+  const tier = (row) => row.tier || row.rarity || row.box_tier || "common";
 
   const loot = (lootRaw || [])
     .map((lb) => ({
       id: lb.id,
       rarity: tier(lb),
-      status: isOpened(lb) ? 'opened' : 'pending',
+      status: isOpened(lb) ? "opened" : "pending",
       created_at: pickDate(lb),
     }))
     .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
@@ -301,49 +301,49 @@ async function renderAwardsAndLoot(characterId) {
 function subscribeAwardsAndLoot(characterId) {
   // Achievements
   window.sb
-    .channel('achievements:' + characterId)
+    .channel("achievements:" + characterId)
     .on(
-      'postgres_changes',
+      "postgres_changes",
       {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'achievements',
+        event: "INSERT",
+        schema: "public",
+        table: "achievements",
         filter: `character_id=eq.${characterId}`,
       },
       async () => {
         await renderAwardsAndLoot(characterId);
-      }
+      },
     )
     .subscribe();
 
   // Loot boxes
   window.sb
-    .channel('loot_boxes:' + characterId)
+    .channel("loot_boxes:" + characterId)
     .on(
-      'postgres_changes',
+      "postgres_changes",
       {
-        event: 'INSERT',
-        schema: 'public',
-        table: 'loot_boxes',
+        event: "INSERT",
+        schema: "public",
+        table: "loot_boxes",
         filter: `character_id=eq.${characterId}`,
       },
       async () => {
         await renderAwardsAndLoot(characterId);
-      }
+      },
     )
     .subscribe();
 }
 
 // ================= EXPERIENCES HOOK (still keep the listener) =================
-window.addEventListener('character:ready', (ev) => {
+window.addEventListener("character:ready", (ev) => {
   const ch = ev.detail || {};
   const sb = window.sb;
 
   const chId = ch.id ?? ch.character_id;
-  console.log('[xp] character:ready', { hasSb: !!sb, chId });
+  console.log("[xp] character:ready", { hasSb: !!sb, chId });
 
-  if (!document.getElementById('xpList')) {
-    console.warn('[xp] #xpList missing in DOM');
+  if (!document.getElementById("xpList")) {
+    console.warn("[xp] #xpList missing in DOM");
     return;
   }
   if (!sb || !chId) return;
@@ -369,11 +369,11 @@ async function handleAbilityOnEquip(item, slot) {
   const chId = window.AppState.character.id;
 
   await client
-    .from('character_abilities')
+    .from("character_abilities")
     .delete()
-    .eq('character_id', chId)
-    .eq('slot', slot);
-  await client.from('character_abilities').insert({
+    .eq("character_id", chId)
+    .eq("slot", slot);
+  await client.from("character_abilities").insert({
     character_id: chId,
     slot,
     ability_id: item.ability_id,
@@ -381,7 +381,7 @@ async function handleAbilityOnEquip(item, slot) {
 }
 
 // ---- EQUIP with wear persistence (drop-in) ----
-const EQUIP_BEHAVIOR = 'swap'; // 'swap' | 'fail'
+const EQUIP_BEHAVIOR = "swap"; // 'swap' | 'fail'
 
 async function equipFromInventory(lineId) {
   const sb = window.sb;
@@ -390,14 +390,14 @@ async function equipFromInventory(lineId) {
 
   // 1) Load the inventory line + item
   const { data: line, error: qErr } = await sb
-    .from('character_items')
+    .from("character_items")
     .select(
-      'id, item_id, qty, item:items(id,name,slot,armor_value,damage,ability_id)'
+      "id, item_id, qty, item:items(id,name,slot,armor_value,damage,ability_id)",
     )
-    .eq('id', lineId)
+    .eq("id", lineId)
     .maybeSingle();
   if (qErr || !line?.item) {
-    console.warn('[equip] inventory line missing', qErr, line);
+    console.warn("[equip] inventory line missing", qErr, line);
     return;
   }
 
@@ -405,34 +405,34 @@ async function equipFromInventory(lineId) {
   let targetSlot = item.slot;
   if (!targetSlot) return;
 
-  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+  const ARMOR_SLOTS = ["head", "chest", "legs", "hands", "feet"];
   const isArmorSlot = ARMOR_SLOTS.includes(targetSlot);
 
   // 2) If it's a weapon and "weapon" is occupied, try offhand
-  if (targetSlot === 'weapon') {
+  if (targetSlot === "weapon") {
     const { data: wepRow } = await sb
-      .from('character_equipment')
-      .select('id,item_id')
-      .eq('character_id', chId)
-      .eq('slot', 'weapon')
+      .from("character_equipment")
+      .select("id,item_id")
+      .eq("character_id", chId)
+      .eq("slot", "weapon")
       .maybeSingle();
     if (wepRow?.item_id) {
       const { data: offRow } = await sb
-        .from('character_equipment')
-        .select('id,item_id')
-        .eq('character_id', chId)
-        .eq('slot', 'offhand')
+        .from("character_equipment")
+        .select("id,item_id")
+        .eq("character_id", chId)
+        .eq("slot", "offhand")
         .maybeSingle();
-      if (!offRow?.item_id) targetSlot = 'offhand';
+      if (!offRow?.item_id) targetSlot = "offhand";
     }
   }
 
   // 3) Read current slot row (so we can cache outgoing wear)
   const { data: curRow } = await sb
-    .from('character_equipment')
-    .select('id, item_id, exo_left, slots_remaining, slot')
-    .eq('character_id', chId)
-    .eq('slot', targetSlot)
+    .from("character_equipment")
+    .select("id, item_id, exo_left, slots_remaining, slot")
+    .eq("character_id", chId)
+    .eq("slot", targetSlot)
     .maybeSingle();
 
   // 4) If an item is currently equipped in that slot, cache its wear before replacing
@@ -443,14 +443,14 @@ async function equipFromInventory(lineId) {
         sb,
         chId,
         curRow.item_id,
-        curRow.slots_remaining ?? 0
+        curRow.slots_remaining ?? 0,
       );
     } catch (e) {
-      console.warn('[equip] wear cache (outgoing) failed', e);
+      console.warn("[equip] wear cache (outgoing) failed", e);
     }
 
-    if (EQUIP_BEHAVIOR === 'fail') {
-      setText?.('msg', `Cannot equip: ${targetSlot} is occupied.`);
+    if (EQUIP_BEHAVIOR === "fail") {
+      setText?.("msg", `Cannot equip: ${targetSlot} is occupied.`);
       return;
     }
     // Put the outgoing item back into inventory
@@ -460,9 +460,9 @@ async function equipFromInventory(lineId) {
   // 5) Decrement inventory for the new item
   const nextQty = Math.max(0, Number(line.qty || 1) - 1);
   if (nextQty === 0) {
-    await sb.from('character_items').delete().eq('id', line.id);
+    await sb.from("character_items").delete().eq("id", line.id);
   } else {
-    await sb.from('character_items').update({ qty: nextQty }).eq('id', line.id);
+    await sb.from("character_items").update({ qty: nextQty }).eq("id", line.id);
   }
 
   // 6) Determine slots_remaining for the *incoming* item
@@ -483,11 +483,11 @@ async function equipFromInventory(lineId) {
   // 7) Write equipment row (preserve exo_left if row exists)
   if (curRow?.id) {
     await sb
-      .from('character_equipment')
+      .from("character_equipment")
       .update({ item_id: item.id, slots_remaining: slotsRemainingToUse })
-      .eq('id', curRow.id);
+      .eq("id", curRow.id);
   } else {
-    await sb.from('character_equipment').insert({
+    await sb.from("character_equipment").insert({
       character_id: chId,
       slot: targetSlot,
       item_id: item.id,
@@ -500,7 +500,7 @@ async function equipFromInventory(lineId) {
   try {
     await handleAbilityOnEquip?.(item, targetSlot);
   } catch (e) {
-    console.warn('[equip] ability hook', e);
+    console.warn("[equip] ability hook", e);
   }
 
   // IMPORTANT: do NOT delete the wear row here. Leaving it lets inventory show wear.
@@ -516,8 +516,8 @@ async function equipFromInventory(lineId) {
   await renderActiveWeapons?.();
 
   setText?.(
-    'msg',
-    (curRow?.item_id ? 'Swapped ' : 'Equipped to ') + targetSlot
+    "msg",
+    (curRow?.item_id ? "Swapped " : "Equipped to ") + targetSlot,
   );
 }
 window.equipFromInventory = equipFromInventory;
@@ -531,23 +531,23 @@ async function addInventoryItemById(itemId, delta) {
 
 async function populateNonEquipPicker() {
   const client = window.sb;
-  const sel = document.getElementById('invAddItem');
-  const btn = document.getElementById('invAddPlus');
+  const sel = document.getElementById("invAddItem");
+  const btn = document.getElementById("invAddPlus");
   if (!sel || !btn) return;
 
   const { data, error } = await client
-    .from('items')
-    .select('id, name')
-    .is('slot', null)
-    .order('name', { ascending: true });
+    .from("items")
+    .select("id, name")
+    .is("slot", null)
+    .order("name", { ascending: true });
   if (error) {
-    console.warn('[invAdd] items error', error);
+    console.warn("[invAdd] items error", error);
     return;
   }
 
   sel.innerHTML = (data || [])
     .map((i) => `<option value="${i.id}">${i.name}</option>`)
-    .join('');
+    .join("");
   btn.onclick = async () => {
     const itemId = sel.value;
     if (!itemId) return;
@@ -571,57 +571,57 @@ window.adjustNonEquipQty = adjustNonEquipQty;
 async function doAddNameBox() {
   const sb = window.sb;
   const chId = AppState?.character?.id;
-  const nameEl = document.getElementById('addItemName');
-  const qtyEl = document.getElementById('addItemQty');
-  const eqCb = document.getElementById('addItemEquippable');
-  const slotSel = document.getElementById('addItemSlot');
-  const dmgEl = document.getElementById('addItemDamage');
-  const avEl = document.getElementById('addItemArmor');
-  const msgEl = document.getElementById('addItemMsg');
+  const nameEl = document.getElementById("addItemName");
+  const qtyEl = document.getElementById("addItemQty");
+  const eqCb = document.getElementById("addItemEquippable");
+  const slotSel = document.getElementById("addItemSlot");
+  const dmgEl = document.getElementById("addItemDamage");
+  const avEl = document.getElementById("addItemArmor");
+  const msgEl = document.getElementById("addItemMsg");
   const kind =
     document.querySelector('input[name="addItemKind"]:checked')?.value ||
-    'weapon';
+    "weapon";
 
   const setMsg = (s) => {
-    if (msgEl) msgEl.textContent = s || '';
+    if (msgEl) msgEl.textContent = s || "";
   };
 
   if (!sb || !chId) {
-    setMsg('Not ready.');
+    setMsg("Not ready.");
     return;
   }
 
-  const name = (nameEl?.value || '').trim();
+  const name = (nameEl?.value || "").trim();
   const qty = Math.max(1, Number(qtyEl?.value || 1));
   if (!name) {
-    setMsg('Enter a name.');
+    setMsg("Enter a name.");
     nameEl?.focus();
     return;
   }
 
   try {
-    setMsg('Adding…');
+    setMsg("Adding…");
     let itemRes;
 
     if (eqCb?.checked) {
       // Decide slot based on kind
       let slot;
-      if (kind === 'armor') {
-        slot = slotSel?.value || ''; // must be one of head/chest/legs/hands/feet
-      } else if (kind === 'weapon') {
-        slot = 'weapon';
+      if (kind === "armor") {
+        slot = slotSel?.value || ""; // must be one of head/chest/legs/hands/feet
+      } else if (kind === "weapon") {
+        slot = "weapon";
       } else {
         // other → default to trinket silently
-        slot = 'trinket';
+        slot = "trinket";
       }
 
       itemRes = await App.Logic.inventory.findOrCreateEquippableByAttrs(sb, {
         name,
         slot,
         kind,
-        damage: dmgEl?.value || '',
+        damage: dmgEl?.value || "",
         armor_value: avEl?.value || 0,
-        notes: '', // or pull from a notes input if you add one
+        notes: "", // or pull from a notes input if you add one
       });
     } else {
       itemRes = await App.Logic.inventory.findOrCreateNonEquipByName(sb, name);
@@ -639,26 +639,26 @@ async function doAddNameBox() {
     });
 
     // reset
-    if (nameEl) nameEl.value = '';
+    if (nameEl) nameEl.value = "";
     if (qtyEl) qtyEl.value = 1;
-    setMsg('');
+    setMsg("");
     nameEl?.focus();
   } catch (err) {
-    console.error('[add-box] unexpected error', err);
-    setMsg('Add failed.');
+    console.error("[add-box] unexpected error", err);
+    setMsg("Add failed.");
   }
 }
 
 (function wireAddItemToggles() {
-  const eqCb = document.getElementById('addItemEquippable');
-  const fields = document.getElementById('addEquipFields');
-  const slotWrap = document.getElementById('addItemSlotWrap');
-  const slotSel = document.getElementById('addItemSlot');
+  const eqCb = document.getElementById("addItemEquippable");
+  const fields = document.getElementById("addEquipFields");
+  const slotWrap = document.getElementById("addItemSlotWrap");
+  const slotSel = document.getElementById("addItemSlot");
   const kindRadios = document.querySelectorAll('input[name="addItemKind"]');
-  const rowW = document.getElementById('addWeaponRow');
-  const rowA = document.getElementById('addArmorRow');
+  const rowW = document.getElementById("addWeaponRow");
+  const rowA = document.getElementById("addArmorRow");
 
-  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+  const ARMOR_SLOTS = ["head", "chest", "legs", "hands", "feet"];
 
   function fillOptions(opts) {
     if (!slotSel) return;
@@ -667,45 +667,45 @@ async function doAddNameBox() {
         (v) =>
           `<option value="${v}">${
             v.charAt(0).toUpperCase() + v.slice(1)
-          }</option>`
+          }</option>`,
       )
-      .join('');
+      .join("");
     // select first by default
     if (opts.length) slotSel.value = opts[0];
   }
 
   function sync() {
     const isEq = !!eqCb?.checked;
-    if (fields) fields.style.display = isEq ? '' : 'none';
+    if (fields) fields.style.display = isEq ? "" : "none";
     if (!isEq) return;
 
     const kind =
       document.querySelector('input[name="addItemKind"]:checked')?.value ||
-      'weapon';
+      "weapon";
 
     // Show/hide damage vs armor inputs
-    if (rowW) rowW.style.display = kind === 'weapon' ? '' : 'none';
-    if (rowA) rowA.style.display = kind === 'armor' ? '' : 'none';
+    if (rowW) rowW.style.display = kind === "weapon" ? "" : "none";
+    if (rowA) rowA.style.display = kind === "armor" ? "" : "none";
 
-    if (kind === 'armor') {
+    if (kind === "armor") {
       // Show slot dropdown for armor, with only armor slots
-      if (slotWrap) slotWrap.style.display = '';
+      if (slotWrap) slotWrap.style.display = "";
       fillOptions(ARMOR_SLOTS);
-    } else if (kind === 'weapon') {
+    } else if (kind === "weapon") {
       // Hide slot dropdown; we will force slot='weapon' in submit
-      if (slotWrap) slotWrap.style.display = 'none';
+      if (slotWrap) slotWrap.style.display = "none";
       // keep a fallback value around (not used)
-      fillOptions(['weapon']);
+      fillOptions(["weapon"]);
     } else {
       // 'other'
       // Hide slot dropdown (you can switch to fillOptions(['trinket']) if you prefer)
-      if (slotWrap) slotWrap.style.display = 'none';
-      fillOptions(['trinket']);
+      if (slotWrap) slotWrap.style.display = "none";
+      fillOptions(["trinket"]);
     }
   }
 
-  eqCb?.addEventListener('change', sync);
-  kindRadios.forEach((r) => r.addEventListener('change', sync));
+  eqCb?.addEventListener("change", sync);
+  kindRadios.forEach((r) => r.addEventListener("change", sync));
   sync();
 })();
 
@@ -714,19 +714,19 @@ async function doAddNameBox() {
 async function renderActiveWeapons() {
   const sb = window.sb;
   const chId = window.AppState?.character?.id;
-  const root = document.getElementById('activeWeapons');
-  const empty = document.getElementById('weaponsEmpty');
+  const root = document.getElementById("activeWeapons");
+  const empty = document.getElementById("weaponsEmpty");
   if (!sb || !chId || !root) return;
 
   // Pull both slots
   const { data = [], error } = await sb
-    .from('character_equipment')
-    .select('slot, item_id, item:items(name, damage)')
-    .eq('character_id', chId)
-    .in('slot', ['weapon', 'offhand']);
+    .from("character_equipment")
+    .select("slot, item_id, item:items(name, damage)")
+    .eq("character_id", chId)
+    .in("slot", ["weapon", "offhand"]);
 
   if (error) {
-    console.warn('[weapons] query error', error);
+    console.warn("[weapons] query error", error);
     return;
   }
 
@@ -737,21 +737,21 @@ async function renderActiveWeapons() {
   const order = { weapon: 0, offhand: 1 };
   rows.sort((a, b) => (order[a.slot] ?? 99) - (order[b.slot] ?? 99));
 
-  root.innerHTML = '';
+  root.innerHTML = "";
 
   if (!rows.length) {
-    if (empty) empty.style.display = '';
+    if (empty) empty.style.display = "";
     return;
   }
-  if (empty) empty.style.display = 'none';
+  if (empty) empty.style.display = "none";
 
   // Render compact rows
   for (const r of rows) {
-    const div = document.createElement('div');
-    div.className = 'row';
+    const div = document.createElement("div");
+    div.className = "row";
     div.innerHTML = `
-      <div>${(r.slot || '').toUpperCase()}: ${r.item?.name || '—'}
-        <span class="muted mono">${r.item?.damage ?? ''}</span>
+      <div>${(r.slot || "").toUpperCase()}: ${r.item?.name || "—"}
+        <span class="muted mono">${r.item?.damage ?? ""}</span>
       </div>
       <div class="spacer"></div>
       <button class="btn-tiny" data-unequip-slot="${r.slot}">Unequip</button>
@@ -761,19 +761,19 @@ async function renderActiveWeapons() {
 }
 window.renderActiveWeapons = renderActiveWeapons; // ensure global so equipment.js can call it
 
-document.addEventListener('click', async (e) => {
-  const b = e.target.closest('[data-unequip-slot]');
+document.addEventListener("click", async (e) => {
+  const b = e.target.closest("[data-unequip-slot]");
   if (!b) return;
   e.preventDefault();
-  const slot = b.getAttribute('data-unequip-slot');
+  const slot = b.getAttribute("data-unequip-slot");
 
   const fn = App?.Features?.equipment?.unequipSlot || window.unequipSlot;
 
-  if (typeof fn === 'function') {
+  if (typeof fn === "function") {
     await fn(slot);
   } else {
-    console.warn('[weapons] unequip handler missing');
-    setText?.('msg', 'Unequip unavailable right now.');
+    console.warn("[weapons] unequip handler missing");
+    setText?.("msg", "Unequip unavailable right now.");
   }
 });
 
@@ -781,21 +781,21 @@ document.addEventListener('click', async (e) => {
 async function ensureExoRowsForAllSlots() {
   const sb = window.sb;
   const ch = AppState.character;
-  const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
+  const ARMOR_SLOTS = ["head", "chest", "legs", "hands", "feet"];
 
   const { data: existing, error: readErr } = await sb
-    .from('character_equipment')
-    .select('slot')
-    .eq('character_id', ch.id)
-    .in('slot', ARMOR_SLOTS);
+    .from("character_equipment")
+    .select("slot")
+    .eq("character_id", ch.id)
+    .in("slot", ARMOR_SLOTS);
 
   if (readErr) {
-    console.warn('[rest] exo rows read error', readErr);
+    console.warn("[rest] exo rows read error", readErr);
     return {
       ok: false,
       created: 0,
       missing: ARMOR_SLOTS.slice(),
-      reason: 'read',
+      reason: "read",
       error: readErr,
     };
   }
@@ -812,11 +812,11 @@ async function ensureExoRowsForAllSlots() {
     exo_left: 1,
   }));
   const { error: insErr } = await sb
-    .from('character_equipment')
+    .from("character_equipment")
     .insert(inserts);
   if (insErr) {
-    console.warn('[rest] exo rows insert error', insErr, { inserts });
-    return { ok: false, created: 0, missing, reason: 'insert', error: insErr };
+    console.warn("[rest] exo rows insert error", insErr, { inserts });
+    return { ok: false, created: 0, missing, reason: "insert", error: insErr };
   }
   return { ok: true, created: missing.length, missing: [] };
 }
@@ -824,44 +824,44 @@ async function ensureExoRowsForAllSlots() {
 // ================= BUTTON WIRING =================
 function wireHpAndHope() {
   document
-    .getElementById('btnHpPlus')
-    ?.addEventListener('click', () => adjustHP(+1));
+    .getElementById("btnHpPlus")
+    ?.addEventListener("click", () => adjustHP(+1));
   document
-    .getElementById('btnHpMinus')
-    ?.addEventListener('click', () => adjustHP(-1));
+    .getElementById("btnHpMinus")
+    ?.addEventListener("click", () => adjustHP(-1));
   document
-    .getElementById('btnHopePlus')
-    ?.addEventListener('click', () => adjustHope(+1));
+    .getElementById("btnHopePlus")
+    ?.addEventListener("click", () => adjustHope(+1));
   document
-    .getElementById('btnHopeMinus')
-    ?.addEventListener('click', () => adjustHope(-1));
+    .getElementById("btnHopeMinus")
+    ?.addEventListener("click", () => adjustHope(-1));
 }
 
 // Delegated click handlers
-document.addEventListener('click', async (e) => {
+document.addEventListener("click", async (e) => {
   if (!(e.target instanceof Element)) return;
 
   // Add item (by name box)
-  if (e.target.closest('#btnAddItem')) {
+  if (e.target.closest("#btnAddItem")) {
     e.preventDefault();
     doAddNameBox();
     return;
   }
 
   // Open loot box
-  const openBtn = e.target.closest('[data-open-loot]');
+  const openBtn = e.target.closest("[data-open-loot]");
   if (openBtn) {
     e.preventDefault();
-    const lootId = openBtn.getAttribute('data-open-loot');
+    const lootId = openBtn.getAttribute("data-open-loot");
     if (lootId) App?.Features?.awards?.openLootBox?.(lootId);
     return;
   }
 
   // ==== Damage Calculator modal ====
-  const dmgOpen = e.target.closest('#btnDamageCalc');
-  const dmgClose = e.target.closest('#btnCloseModal');
-  const dmgCalc = e.target.closest('#btnCalc');
-  const dmgApply = e.target.closest('#btnApplyDamage');
+  const dmgOpen = e.target.closest("#btnDamageCalc");
+  const dmgClose = e.target.closest("#btnCloseModal");
+  const dmgCalc = e.target.closest("#btnCalc");
+  const dmgApply = e.target.closest("#btnApplyDamage");
 
   if (dmgOpen || dmgClose || dmgCalc || dmgApply) {
     e.preventDefault();
@@ -872,17 +872,17 @@ document.addEventListener('click', async (e) => {
       (window.supabase && window.supabase.client) ||
       window.supabase;
 
-    const back = document.getElementById('modalBack');
-    const input = document.getElementById('calcDamage');
-    const result = document.getElementById('calcResult');
+    const back = document.getElementById("modalBack");
+    const input = document.getElementById("calcDamage");
+    const result = document.getElementById("calcResult");
     const setResult = (t) => result && (result.textContent = t);
 
     if (dmgOpen) {
-      back?.classList.add('show');
+      back?.classList.add("show");
       return;
     }
     if (dmgClose) {
-      back?.classList.remove('show');
+      back?.classList.remove("show");
       return;
     }
 
@@ -892,7 +892,7 @@ document.addEventListener('click', async (e) => {
     // PREVIEW (raw HP loss before armor)
     if (dmgCalc) {
       if (!sb || !chId) {
-        setResult('HP loss: —');
+        setResult("HP loss: —");
         return;
       }
       try {
@@ -900,12 +900,12 @@ document.addEventListener('click', async (e) => {
         const hpLossRaw = window.App.Logic.combat.hpLossFromDamage(
           prev.amount,
           prev.thresholds.t1,
-          prev.thresholds.t2
+          prev.thresholds.t2,
         );
         setResult(`HP loss: -${hpLossRaw}`);
       } catch (err) {
-        console.error('[calc] preview error', err);
-        setResult('HP loss: —');
+        console.error("[calc] preview error", err);
+        setResult("HP loss: —");
       }
       return;
     }
@@ -914,21 +914,21 @@ document.addEventListener('click', async (e) => {
     if (dmgApply) {
       const ch = window.AppState?.character;
       if (!sb || !ch?.id) {
-        setResult('HP loss: —');
+        setResult("HP loss: —");
         return;
       }
       try {
         const out = await window.App.Logic.combat.applyHit(sb, ch, base);
         setResult(`HP loss: -${out.hpLoss}`);
 
-        if (typeof renderHP === 'function') renderHP(ch);
+        if (typeof renderHP === "function") renderHP(ch);
         await window.App.Features.equipment.computeAndRenderArmor(ch.id);
         await window.App.Features.equipment.load(ch.id);
 
-        back?.classList.remove('show');
+        back?.classList.remove("show");
       } catch (err) {
-        console.error('[calc] apply error', err);
-        setResult('HP loss: —');
+        console.error("[calc] apply error", err);
+        setResult("HP loss: —");
       }
     }
   }
@@ -936,46 +936,46 @@ document.addEventListener('click', async (e) => {
 
 // ================= TABS =================
 (function setupTabs() {
-  document.addEventListener('click', async (e) => {
-    const t = e.target.closest('.tab');
+  document.addEventListener("click", async (e) => {
+    const t = e.target.closest(".tab");
     if (!t) return;
-    if (t.tagName === 'A' || t.hasAttribute('href')) e.preventDefault();
+    if (t.tagName === "A" || t.hasAttribute("href")) e.preventDefault();
 
     const tabName = t.dataset.page || t.dataset.tab;
     if (!tabName) return;
 
     document
-      .querySelectorAll('.tab')
-      .forEach((x) => x.classList.toggle('active', x === t));
+      .querySelectorAll(".tab")
+      .forEach((x) => x.classList.toggle("active", x === t));
     const pageId = `page-${tabName}`;
     document
-      .querySelectorAll('.page')
-      .forEach((p) => p.classList.toggle('active', p.id === pageId));
+      .querySelectorAll(".page")
+      .forEach((p) => p.classList.toggle("active", p.id === pageId));
 
     const id = window.AppState?.character?.id;
     if (!id) return;
 
     try {
-      if (tabName === 'inventory') {
+      if (tabName === "inventory") {
         await App.Features.inventory.load(id, {
           onEquip: equipFromInventory,
           onAdjustQty: adjustNonEquipQty,
         });
-      } else if (tabName === 'equipment') {
+      } else if (tabName === "equipment") {
         await App.Features.equipment.load?.(id);
         await App.Features.equipment.computeAndRenderArmor?.(id);
-      } else if (tabName === 'abilities') {
+      } else if (tabName === "abilities") {
         await App.Features.abilities.render?.(id);
-      } else if (tabName === 'awards') {
+      } else if (tabName === "awards") {
         await App.Features.awards.render?.(id);
       }
     } catch (err) {
-      console.error('[tabs] error while rendering tab', tabName, err);
-      setText?.('msg', `Failed to load ${tabName} tab.`);
+      console.error("[tabs] error while rendering tab", tabName, err);
+      setText?.("msg", `Failed to load ${tabName} tab.`);
     }
   });
 
-  const initiallyActive = document.querySelector('.tab.active');
+  const initiallyActive = document.querySelector(".tab.active");
   if (initiallyActive) initiallyActive.click();
 })();
 
@@ -985,20 +985,20 @@ async function bootExperiences(chId) {
     () =>
       !!window.sb &&
       !!window.App?.Features?.experience?.loadExperiences &&
-      !!document.getElementById('xpList'),
-    { tries: 40, delayMs: 125 }
+      !!document.getElementById("xpList"),
+    { tries: 40, delayMs: 125 },
   );
 
-  console.log('[xp] boot check', {
+  console.log("[xp] boot check", {
     hasSb: !!window.sb,
     hasFeature: !!window.App?.Features?.experience?.loadExperiences,
-    hasDom: !!document.getElementById('xpList'),
+    hasDom: !!document.getElementById("xpList"),
     chId,
   });
 
-  const list = document.getElementById('xpList');
+  const list = document.getElementById("xpList");
   if (!ok) {
-    console.warn('[xp] Not ready after wait (sb/feature/dom missing)');
+    console.warn("[xp] Not ready after wait (sb/feature/dom missing)");
     if (list) {
       list.innerHTML = `
         <div class="xp-row xp-empty"><span>Not ready yet…</span><span></span><span class="xp-notch" aria-hidden="true"></span></div>`;
@@ -1019,7 +1019,7 @@ async function bootExperiences(chId) {
     window.AppState.xpChannel =
       window.App.Features.experience.subscribeExperiences?.(sb, chId) || null;
   } catch (e) {
-    console.warn('[xp] boot load failed', e);
+    console.warn("[xp] boot load failed", e);
     if (list) {
       list.innerHTML = `
         <div class="xp-row xp-empty"><span>Error loading</span><span></span><span class="xp-notch" aria-hidden="true"></span></div>`;
@@ -1028,9 +1028,9 @@ async function bootExperiences(chId) {
 }
 
 // ================= INIT HOOK (character:ready) =================
-window.addEventListener('character:ready', (e) => {
+window.addEventListener("character:ready", (e) => {
   const ch = e.detail;
-  console.log('[character:ready]', { id: ch?.id });
+  console.log("[character:ready]", { id: ch?.id });
   renderHP(ch); // one immediate paint
   renderHope(ch);
   App?.Features?.equipment?.computeAndRenderArmor?.(ch.id);
@@ -1039,7 +1039,7 @@ window.addEventListener('character:ready', (e) => {
   try {
     wireHpAndHope();
   } catch (err) {
-    console.warn('[wireHpAndHope] on character:ready failed', err);
+    console.warn("[wireHpAndHope] on character:ready failed", err);
   }
 });
 
@@ -1049,31 +1049,31 @@ async function init() {
 
   const client = window.sb;
   if (!client) {
-    setText?.('msg', 'Supabase client not initialized.');
+    setText?.("msg", "Supabase client not initialized.");
     return;
   }
 
   // ---- auth ----
   const { data: { user } = {}, error: userErr } = await client.auth.getUser();
-  console.log('[auth] getUser', { user, userErr });
+  console.log("[auth] getUser", { user, userErr });
   if (!user) {
-    setText?.('msg', 'Not logged in.');
+    setText?.("msg", "Not logged in.");
     return;
   }
 
   // ---- character ----
   const { data: c, error: charErr } = await client
-    .from('characters')
+    .from("characters")
     .select(
-      'id,user_id,name,race,class,level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes'
+      "id,user_id,name,race,class,level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes",
     )
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
   if (charErr || !c) {
-    setText?.('msg', charErr?.message || 'No character.');
+    setText?.("msg", charErr?.message || "No character.");
     return;
   }
 
@@ -1083,37 +1083,41 @@ async function init() {
   // ---- stats (traits) ----
   try {
     const { data: statsRow, error: statsErr } = await client
-      .from('character_stats')
-      .select('*')
-      .eq('character_id', c.id)
+      .from("character_stats")
+      .select("*")
+      .eq("character_id", c.id)
       .maybeSingle();
-    if (statsErr) setText?.('msg', 'Error loading stats: ' + statsErr.message);
+    if (statsErr) setText?.("msg", "Error loading stats: " + statsErr.message);
     else renderAllTraits?.(statsRow || {});
   } catch (e) {
-    console.warn('[stats] unexpected', e);
+    console.warn("[stats] unexpected", e);
   }
 
   // ---- awards & loot (initial + realtime) ----
-  subscribeAwardsAndLoot(c.id);
-  await renderAwardsAndLoot(c.id);
+  try {
+    await App.Features.awards?.subscribe?.(c.id);
+    App.Features.awards?.render?.();
+  } catch (e) {
+    console.warn("[awards] init skipped", e);
+  }
 
   // ---- header/meta ----
-  setText?.('charName', c.name ?? '—');
-  setText?.('charRace', c.race ?? '—');
-  setText?.('charClass', c['class'] ?? '—');
-  setText?.('charLevelNum', c.level ?? '—');
-  setText?.('evasion', c.evasion ?? '—');
-  setText?.('ownerEmail', user.email || '—');
-  setText?.('ownerId', c.user_id || '—');
-  setText?.('charId', c.id || '—');
-  setText?.('hpCurrent', c.hp_current ?? 0);
-  setText?.('hpTotal', c.hp_total ?? 0);
-  setText?.('thMinor', c.dmg_minor ?? '—');
-  setText?.('thMajor', c.dmg_major ?? '—');
-  setText?.('thSevere', c.dmg_severe ?? '—');
-  setText?.('hopeDots', fmtDots?.(c.hope_points ?? 0) ?? '');
-  const notesEl = document.getElementById('notes');
-  if (notesEl) notesEl.value = c.notes ?? '';
+  setText?.("charName", c.name ?? "—");
+  setText?.("charRace", c.race ?? "—");
+  setText?.("charClass", c["class"] ?? "—");
+  setText?.("charLevelNum", c.level ?? "—");
+  setText?.("evasion", c.evasion ?? "—");
+  setText?.("ownerEmail", user.email || "—");
+  setText?.("ownerId", c.user_id || "—");
+  setText?.("charId", c.id || "—");
+  setText?.("hpCurrent", c.hp_current ?? 0);
+  setText?.("hpTotal", c.hp_total ?? 0);
+  setText?.("thMinor", c.dmg_minor ?? "—");
+  setText?.("thMajor", c.dmg_major ?? "—");
+  setText?.("thSevere", c.dmg_severe ?? "—");
+  setText?.("hopeDots", fmtDots?.(c.hope_points ?? 0) ?? "");
+  const notesEl = document.getElementById("notes");
+  if (notesEl) notesEl.value = c.notes ?? "";
 
   // ---- features (inventory/equipment first) ----
   await App.Features.inventory.load(c.id, {
@@ -1147,22 +1151,22 @@ async function init() {
       } catch {}
     }
     window.AppState.silChannel = sb
-      .channel('silhouette:' + c.id)
+      .channel("silhouette:" + c.id)
       .on(
-        'postgres_changes',
+        "postgres_changes",
         {
-          event: '*', // INSERT | UPDATE | DELETE
-          schema: 'public',
-          table: 'character_equipment',
+          event: "*", // INSERT | UPDATE | DELETE
+          schema: "public",
+          table: "character_equipment",
           filter: `character_id=eq.${c.id}`,
         },
         async () => {
           await App.Features.equipment.computeAndRenderArmor(c.id);
-        }
+        },
       )
       .subscribe();
   } catch (e) {
-    console.warn('[silhouette] subscribe failed', e);
+    console.warn("[silhouette] subscribe failed", e);
   }
 
   // ---- XP boot (unchanged) ----
@@ -1175,22 +1179,22 @@ async function init() {
       window.__WIRED_LEVELUP = true; // guard against double-binding
     }
   } catch (e) {
-    console.warn('[levelup] wire failed', e);
+    console.warn("[levelup] wire failed", e);
   }
 
   // ---- final msg ----
-  setText?.('msg', '');
+  setText?.("msg", "");
 }
 
 // ================= LEVEL UP (stub) =================
 function wireLevelUp() {
-  const openBtn = document.getElementById('btnLevelUp');
-  const back = document.getElementById('levelModalBack');
-  const closeBtn = document.getElementById('btnCloseLevelModal');
-  const confirmBtn = document.getElementById('btnConfirmLevelUp');
-  const choiceHp = document.getElementById('luChoiceHp');
-  const choiceStat = document.getElementById('luChoiceStat');
-  const abilitySel = document.getElementById('luAbilityKey');
+  const openBtn = document.getElementById("btnLevelUp");
+  const back = document.getElementById("levelModalBack");
+  const closeBtn = document.getElementById("btnCloseLevelModal");
+  const confirmBtn = document.getElementById("btnConfirmLevelUp");
+  const choiceHp = document.getElementById("luChoiceHp");
+  const choiceStat = document.getElementById("luChoiceStat");
+  const abilitySel = document.getElementById("luAbilityKey");
 
   if (!openBtn || !back) return;
 
@@ -1203,12 +1207,12 @@ function wireLevelUp() {
       (statSelected &&
         abilitySel &&
         abilitySel.value &&
-        abilitySel.value !== '');
+        abilitySel.value !== "");
     if (confirmBtn) confirmBtn.disabled = !canConfirm;
   }
 
-  openBtn.addEventListener('click', async () => {
-    back.classList.add('show');
+  openBtn.addEventListener("click", async () => {
+    back.classList.add("show");
 
     const sb = window.sb;
     const ch = window.AppState?.character;
@@ -1216,21 +1220,21 @@ function wireLevelUp() {
 
     try {
       const { data: statsRow, error } = await sb
-        .from('character_stats')
-        .select('*')
-        .eq('character_id', ch.id)
+        .from("character_stats")
+        .select("*")
+        .eq("character_id", ch.id)
         .maybeSingle();
 
       if (error) {
-        console.warn('[levelup] stats read error', error);
+        console.warn("[levelup] stats read error", error);
         abilitySel.innerHTML = `<option value="">(no stats table)</option>`;
       } else {
         const keys = Object.keys(statsRow || {}).filter((k) => {
           if (
-            k === 'id' ||
-            k === 'character_id' ||
-            k === 'created_at' ||
-            k === 'updated_at'
+            k === "id" ||
+            k === "character_id" ||
+            k === "created_at" ||
+            k === "updated_at"
           )
             return false;
           return Number.isFinite(Number(statsRow[k]));
@@ -1240,17 +1244,17 @@ function wireLevelUp() {
           ? `<option value="">— choose a stat —</option>` +
             keys
               .map(
-                (k) => `<option value="${k}">${k.replace(/_/g, ' ')}</option>`
+                (k) => `<option value="${k}">${k.replace(/_/g, " ")}</option>`,
               )
-              .join('')
+              .join("")
           : `<option value="">(no numeric stats found)</option>`;
       }
     } catch (e) {
-      console.warn('[levelup] dropdown populate failed', e);
+      console.warn("[levelup] dropdown populate failed", e);
       abilitySel.innerHTML = `<option value="">(error)</option>`;
     }
 
-    if (abilitySel) abilitySel.value = '';
+    if (abilitySel) abilitySel.value = "";
     if (choiceHp) choiceHp.checked = true;
     if (choiceStat) choiceStat.checked = false;
     if (abilitySel) abilitySel.disabled = true;
@@ -1258,13 +1262,13 @@ function wireLevelUp() {
     updateUIForChoice();
   });
 
-  choiceHp?.addEventListener('change', updateUIForChoice);
-  choiceStat?.addEventListener('change', updateUIForChoice);
-  abilitySel?.addEventListener('change', updateUIForChoice);
+  choiceHp?.addEventListener("change", updateUIForChoice);
+  choiceStat?.addEventListener("change", updateUIForChoice);
+  abilitySel?.addEventListener("change", updateUIForChoice);
 
-  closeBtn?.addEventListener('click', () => back.classList.remove('show'));
+  closeBtn?.addEventListener("click", () => back.classList.remove("show"));
 
-  confirmBtn?.addEventListener('click', async () => {
+  confirmBtn?.addEventListener("click", async () => {
     const sb = window.sb;
     const ch = window.AppState?.character;
     if (!sb || !ch?.id) return;
@@ -1273,10 +1277,10 @@ function wireLevelUp() {
     const statKey =
       choiceStat?.checked && abilitySel && abilitySel.value
         ? abilitySel.value
-        : '';
+        : "";
 
     if (!takeExtraHp && !statKey) {
-      setText?.('msg', 'Choose one bonus: extra +1 HP or a stat to raise.');
+      setText?.("msg", "Choose one bonus: extra +1 HP or a stat to raise.");
       return;
     }
 
@@ -1289,27 +1293,27 @@ function wireLevelUp() {
     const nextHpCurrent = Math.min(nextHpTotal, prevHpCur + hpGain);
 
     const { data: charData, error: charErr } = await sb
-      .from('characters')
+      .from("characters")
       .update({
         level: nextLevel,
         hp_total: nextHpTotal,
         hp_current: nextHpCurrent,
       })
-      .eq('id', ch.id)
-      .select('id, level, hp_total, hp_current, dmg_t1, dmg_t2, evasion')
+      .eq("id", ch.id)
+      .select("id, level, hp_total, hp_current, dmg_t1, dmg_t2, evasion")
       .single();
 
     if (charErr) {
-      console.error('[levelup] character update failed', charErr);
-      setText?.('msg', 'Level up failed.');
+      console.error("[levelup] character update failed", charErr);
+      setText?.("msg", "Level up failed.");
       return;
     }
 
     if (statKey) {
       const { data: statsRow, error: statsErr } = await sb
-        .from('character_stats')
-        .select('*')
-        .eq('character_id', ch.id)
+        .from("character_stats")
+        .select("*")
+        .eq("character_id", ch.id)
         .maybeSingle();
 
       if (
@@ -1322,45 +1326,45 @@ function wireLevelUp() {
         updatePayload[statKey] = cur + 1;
 
         const { error: bumpErr } = await sb
-          .from('character_stats')
+          .from("character_stats")
           .update(updatePayload)
-          .eq('character_id', ch.id);
+          .eq("character_id", ch.id);
 
-        if (bumpErr) console.warn('[levelup] stat bump failed', bumpErr);
+        if (bumpErr) console.warn("[levelup] stat bump failed", bumpErr);
       } else if (statsErr) {
-        console.warn('[levelup] stats read failed', statsErr);
+        console.warn("[levelup] stats read failed", statsErr);
       }
     }
 
     Object.assign(ch, charData);
-    setText?.('hpCurrent', ch.hp_current);
-    setText?.('hpTotal', ch.hp_total);
-    setText?.('charLevelNum', String(ch.level));
+    setText?.("hpCurrent", ch.hp_current);
+    setText?.("hpTotal", ch.hp_total);
+    setText?.("charLevelNum", String(ch.level));
     try {
       renderHP?.(ch);
     } catch (e) {
-      console.warn('[renderHP] failed', e);
+      console.warn("[renderHP] failed", e);
     }
 
     if (App.Logic?.evasion?.refreshStatsAndEvasion) {
       await App.Logic.evasion.refreshStatsAndEvasion(sb, ch.id);
     }
 
-    const featMsg = ch.level % 6 === 0 ? ' — Feat unlocked (coming soon)!' : '';
+    const featMsg = ch.level % 6 === 0 ? " — Feat unlocked (coming soon)!" : "";
     setText?.(
-      'msg',
+      "msg",
       `Leveled up to ${ch.level}! (+${hpGain} Max HP, +${hpGain} Current HP)` +
-        (statKey ? ` (+1 ${statKey.replace(/_/g, ' ')})` : '') +
-        featMsg
+        (statKey ? ` (+1 ${statKey.replace(/_/g, " ")})` : "") +
+        featMsg,
     );
 
-    back.classList.remove('show');
+    back.classList.remove("show");
   });
 }
 
 // ================= KICKOFF =================
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", init);
 } else {
   init();
 }
