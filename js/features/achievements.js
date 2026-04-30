@@ -11,8 +11,8 @@
     (window.supabase && window.supabase.client) ||
     window.supabase;
 
-  if (!sb || typeof sb.from !== 'function') {
-    console.error('[achievements] Supabase client missing.');
+  if (!sb || typeof sb.from !== "function") {
+    console.error("[achievements] Supabase client missing.");
   }
 
   // -------- Small helpers --------
@@ -22,13 +22,13 @@
     if (cls) n.className = cls;
     return n;
   };
-  const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : '');
+  const fmt = (ts) => (ts ? new Date(ts).toLocaleString() : "");
 
   // page visibility + tab check
   const isDocVisible = () => !document.hidden;
   const isAwardsActive = () => {
-    const pg = document.getElementById('page-awards');
-    return !!pg && pg.classList.contains('active');
+    const pg = document.getElementById("page-awards");
+    return !!pg && pg.classList.contains("active");
   };
 
   // Debounced refresh scheduler
@@ -49,18 +49,18 @@
   }
 
   // Ensure a tiny .hidden rule exists once (scoped)
-  if (!document.querySelector('#globalHiddenRule')) {
-    const st = document.createElement('style');
-    st.id = 'globalHiddenRule';
+  if (!document.querySelector("#globalHiddenRule")) {
+    const st = document.createElement("style");
+    st.id = "globalHiddenRule";
     st.textContent = `.hidden{display:none}`;
     document.head.appendChild(st);
   }
 
   /* ===== SCOPED styles so nothing leaks to other pages/buttons ===== */
   function injectAwardsStyles() {
-    if (document.getElementById('awardsScopedStyles')) return;
-    const s = document.createElement('style');
-    s.id = 'awardsScopedStyles';
+    if (document.getElementById("awardsScopedStyles")) return;
+    const s = document.createElement("style");
+    s.id = "awardsScopedStyles";
     s.textContent = `
       /* ---------- Awards page only ---------- */
       #page-awards .btn        { padding:6px 10px; border-radius:8px; border:1px solid rgba(255,255,255,.14); background:rgba(255,255,255,.08); color:#eaeaea; cursor:pointer }
@@ -159,12 +159,12 @@
 
   /* ========== Modal + Confetti (scoped) ========== */
   function ensureModal() {
-    let m = document.querySelector('#lootRevealModal');
+    let m = document.querySelector("#lootRevealModal");
     if (m) return m;
 
-    m = document.createElement('div');
-    m.id = 'lootRevealModal';
-    m.className = 'modal-backdrop hidden';
+    m = document.createElement("div");
+    m.id = "lootRevealModal";
+    m.className = "modal-backdrop hidden";
     m.innerHTML = `
       <div class="modal" role="dialog" aria-modal="true" aria-labelledby="lootRevealTitle">
         <div class="modal-head" style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid #eee">
@@ -179,9 +179,9 @@
     `;
     document.body.appendChild(m);
 
-    if (!document.getElementById('lootRevealStyles')) {
-      const style = document.createElement('style');
-      style.id = 'lootRevealStyles';
+    if (!document.getElementById("lootRevealStyles")) {
+      const style = document.createElement("style");
+      style.id = "lootRevealStyles";
       style.textContent = `
         #lootRevealModal.modal-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.5);display:flex;align-items:center;justify-content:center;z-index:10000}
         #lootRevealModal.hidden{display:none}
@@ -203,17 +203,17 @@
       document.head.appendChild(style);
     }
 
-    const close = () => m.classList.add('hidden');
-    m.querySelector('#lootRevealClose').addEventListener('click', close);
-    m.querySelector('#lootRevealOk').addEventListener('click', close);
-    m.addEventListener('click', (e) => {
+    const close = () => m.classList.add("hidden");
+    m.querySelector("#lootRevealClose").addEventListener("click", close);
+    m.querySelector("#lootRevealOk").addEventListener("click", close);
+    m.addEventListener("click", (e) => {
       if (e.target === m) close();
     });
-    document.addEventListener('keydown', (e) => {
-      if (!m.classList.contains('hidden') && e.key === 'Escape') close();
+    document.addEventListener("keydown", (e) => {
+      if (!m.classList.contains("hidden") && e.key === "Escape") close();
     });
-    m.querySelector('.modal').addEventListener('click', (e) =>
-      e.stopPropagation()
+    m.querySelector(".modal").addEventListener("click", (e) =>
+      e.stopPropagation(),
     );
 
     return m;
@@ -221,21 +221,21 @@
 
   function normalizeConfettiCanvases() {
     document
-      .querySelectorAll('canvas.confetti-canvas, canvas#confetti-canvas')
+      .querySelectorAll("canvas.confetti-canvas, canvas#confetti-canvas")
       .forEach((c) => {
-        c.style.pointerEvents = 'none';
-        c.style.zIndex = '9998';
-        c.style.position = 'fixed';
-        c.style.inset = '0';
+        c.style.pointerEvents = "none";
+        c.style.zIndex = "9998";
+        c.style.position = "fixed";
+        c.style.inset = "0";
       });
   }
 
   async function fireConfetti() {
     if (!window.confetti) {
       await new Promise((res, rej) => {
-        const s = document.createElement('script');
+        const s = document.createElement("script");
         s.src =
-          'https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js';
+          "https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js";
         s.onload = res;
         s.onerror = rej;
         document.head.appendChild(s);
@@ -254,28 +254,28 @@
   async function fetchData(characterId) {
     const [ach, boxes] = await Promise.all([
       sb
-        .from('achievements')
-        .select('id,title,description,awarded_at')
-        .eq('character_id', characterId)
-        .order('awarded_at', { ascending: false }),
+        .from("achievements")
+        .select("id,title,description,awarded_at")
+        .eq("character_id", characterId)
+        .order("awarded_at", { ascending: false }),
       sb
-        .from('loot_boxes')
-        .select('id,rarity,label,status,created_at,opened_at,contents')
-        .eq('character_id', characterId)
-        .order('created_at', { ascending: false }),
+        .from("loot_boxes")
+        .select("id,rarity,label,status,created_at,opened_at,contents")
+        .eq("character_id", characterId)
+        .order("created_at", { ascending: false }),
     ]);
     return { achievements: ach.data || [], boxes: boxes.data || [] };
   }
 
   /* ========== Rendering ========== */
   function rarityPill(rarity) {
-    const span = el('span', `pill rarity-${rarity}`);
+    const span = el("span", `pill rarity-${rarity}`);
     span.textContent = rarity;
     return span;
   }
 
   function renderAchievements(list) {
-    const wrap = $('#awardsList');
+    const wrap = $("#awardsList");
     if (!wrap) return;
     if (!list.length) {
       wrap.innerHTML = `<div class="muted">No achievements yet.</div>`;
@@ -287,58 +287,58 @@
       <div class="row">
         <div>
           <div><strong>${
-            a.title ? String(a.title).replace(/[<>&]/g, '') : 'Achievement'
+            a.title ? String(a.title).replace(/[<>&]/g, "") : "Achievement"
           }</strong></div>
           ${
             a.description
               ? `<div class="muted">${String(a.description).replace(
                   /[<>&]/g,
-                  ''
+                  "",
                 )}</div>`
-              : ''
+              : ""
           }
           <div class="muted">${fmt(a.awarded_at)}</div>
         </div>
         <div></div>
       </div>
-    `
+    `,
       )
-      .join('');
+      .join("");
   }
 
   function ensureOpenedSection() {
-    const awardsPage = $('#page-awards');
+    const awardsPage = $("#page-awards");
     if (!awardsPage) return null;
-    let openedCard = awardsPage.querySelector('#openedLootCard');
+    let openedCard = awardsPage.querySelector("#openedLootCard");
     if (!openedCard) {
-      openedCard = document.createElement('div');
-      openedCard.className = 'card';
-      openedCard.id = 'openedLootCard';
-      openedCard.style.marginBottom = '16px';
+      openedCard = document.createElement("div");
+      openedCard.className = "card";
+      openedCard.id = "openedLootCard";
+      openedCard.style.marginBottom = "16px";
       openedCard.innerHTML = `<h3 style="margin:0 0 8px">Opened Loot Boxes</h3><div id="openedLootList" class="list"></div>`;
-      const achCard = awardsPage.querySelector('.card:nth-of-type(2)');
+      const achCard = awardsPage.querySelector(".card:nth-of-type(2)");
       if (achCard) awardsPage.insertBefore(openedCard, achCard);
       else awardsPage.appendChild(openedCard);
     }
-    return openedCard.querySelector('#openedLootList');
+    return openedCard.querySelector("#openedLootList");
   }
 
   function renderLoot(boxes) {
-    const pendingWrap = document.getElementById('lootList');
+    const pendingWrap = document.getElementById("lootList");
     const openedWrap = ensureOpenedSection();
-    const badge = document.getElementById('lootBadge');
+    const badge = document.getElementById("lootBadge");
 
-    const unopened = (boxes || []).filter((b) => b.status === 'unopened');
-    const opened = (boxes || []).filter((b) => b.status === 'opened');
+    const unopened = (boxes || []).filter((b) => b.status === "unopened");
+    const opened = (boxes || []).filter((b) => b.status === "opened");
 
     // Badge
     if (badge) {
       if (unopened.length > 0) {
         badge.textContent = String(unopened.length);
-        badge.style.display = '';
+        badge.style.display = "";
       } else {
-        badge.style.display = 'none';
-        badge.textContent = '';
+        badge.style.display = "none";
+        badge.textContent = "";
       }
     }
 
@@ -354,16 +354,16 @@
           <div>
             <div><strong>${(
               b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-            ).replace(/[<>&]/g, '')}</strong></div>
+            ).replace(/[<>&]/g, "")}</strong></div>
             <div class="muted">${fmt(b.created_at)}</div>
           </div>
           <div><button class="btn btn-accent" data-open-loot="${
             b.id
           }">Open</button></div>
         </div>
-      `
+      `,
           )
-          .join('');
+          .join("");
       }
     }
 
@@ -379,23 +379,23 @@
               : [];
             const boxTitle = (
               b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-            ).replace(/[<>&]/g, '');
+            ).replace(/[<>&]/g, "");
 
             const chips = revealed
               .map((it) => {
                 const name =
                   (it.item_name ?? `Item ${it.item_id}`) +
-                  (it.ability?.name ? ` (${it.ability.name})` : '');
+                  (it.ability?.name ? ` (${it.ability.name})` : "");
                 const qty = it.qty ?? 1;
-                const drop = it.drop_rarity ?? 'common';
+                const drop = it.drop_rarity ?? "common";
                 return `
             <span class="loot-chip">
-              <span class="name">${String(name).replace(/[<>&]/g, '')}</span>
+              <span class="name">${String(name).replace(/[<>&]/g, "")}</span>
               <span class="qty pill">x${qty}</span>
               <span class="pill rar rarity-${drop}">${drop}</span>
             </span>`;
               })
-              .join('');
+              .join("");
 
             const id = `opened-${b.id}`;
             return `
@@ -421,22 +421,22 @@
           </div>
         `;
           })
-          .join('');
+          .join("");
 
         // expand/collapse
-        openedWrap.querySelectorAll('[data-expand]').forEach((row) => {
-          row.addEventListener('click', (e) => {
-            if (e.target.closest('button,a')) return;
-            const details = row.querySelector('.details');
-            const label = row.querySelector('.openhide-label');
-            const chev = row.querySelector('.chev');
-            const isOpen = details.style.display !== 'none';
-            details.style.display = isOpen ? 'none' : 'block';
-            row.classList.toggle('open', !isOpen);
-            row.setAttribute('aria-expanded', !isOpen ? 'true' : 'false');
-            if (label) label.textContent = isOpen ? 'Open' : 'Hide';
+        openedWrap.querySelectorAll("[data-expand]").forEach((row) => {
+          row.addEventListener("click", (e) => {
+            if (e.target.closest("button,a")) return;
+            const details = row.querySelector(".details");
+            const label = row.querySelector(".openhide-label");
+            const chev = row.querySelector(".chev");
+            const isOpen = details.style.display !== "none";
+            details.style.display = isOpen ? "none" : "block";
+            row.classList.toggle("open", !isOpen);
+            row.setAttribute("aria-expanded", !isOpen ? "true" : "false");
+            if (label) label.textContent = isOpen ? "Open" : "Hide";
             if (chev)
-              chev.style.transform = isOpen ? 'rotate(0deg)' : 'rotate(90deg)';
+              chev.style.transform = isOpen ? "rotate(0deg)" : "rotate(90deg)";
           });
         });
       }
@@ -444,11 +444,11 @@
 
     // Wire Open buttons (unchanged)
     if (pendingWrap) {
-      pendingWrap.querySelectorAll('[data-open-loot]').forEach((btn) => {
-        btn.addEventListener('click', async () => {
+      pendingWrap.querySelectorAll("[data-open-loot]").forEach((btn) => {
+        btn.addEventListener("click", async () => {
           btn.disabled = true;
           try {
-            await openBox(btn.getAttribute('data-open-loot'));
+            await openBox(btn.getAttribute("data-open-loot"));
           } finally {
             btn.disabled = false;
           }
@@ -460,46 +460,46 @@
   /* ========== Open flow (RPC + modal) ========== */
   async function openBox(lootBoxId) {
     if (!lootBoxId) return;
-    const { data, error } = await sb.rpc('rpc_open_seeded_loot_box', {
+    const { data, error } = await sb.rpc("rpc_open_seeded_loot_box", {
       p_loot_box_id: lootBoxId,
       p_auto_grant: true,
     });
     if (error) {
-      console.error('[achievements] openBox error', error);
-      const msg = $('#msg');
-      if (msg) msg.textContent = 'Failed to open loot box.';
+      console.error("[achievements] openBox error", error);
+      const msg = $("#msg");
+      if (msg) msg.textContent = "Failed to open loot box.";
       return;
     }
     const items = Array.isArray(data) ? data : [];
 
     const modal = ensureModal();
-    const body = $('#lootRevealBody');
+    const body = $("#lootRevealBody");
     body.innerHTML = items.length
       ? items
           .map((it) => {
             const name = it.item_name ?? `Item ${it.item_id}`;
             const qty = it.qty ?? 1;
-            const drop = it.drop_rarity ?? '';
-            const base = it.base_rarity ?? '';
+            const drop = it.drop_rarity ?? "";
+            const base = it.base_rarity ?? "";
             const abil = it.ability?.name
               ? ` • Ability: ${it.ability.name}`
-              : '';
+              : "";
             return `
             <div class="row">
               <div>
                 <div><strong>${String(name).replace(
                   /[<>&]/g,
-                  ''
+                  "",
                 )}</strong> <span class="qty-pill">x${qty}</span>
                 <div class="muted">Drop: ${drop} • Base: ${base}${abil}</div>
               </div>
               <div>${rarityPill(drop).outerHTML}</div>
             </div>`;
           })
-          .join('')
+          .join("")
       : `<div class="muted">No items in this box.</div>`;
 
-    modal.classList.remove('hidden');
+    modal.classList.remove("hidden");
     fireConfetti();
     normalizeConfettiCanvases();
 
@@ -516,25 +516,24 @@
     // Broadcast a client event for any listeners
     items.forEach((it) => {
       window.dispatchEvent(
-        new CustomEvent('inventory:add', {
+        new CustomEvent("inventory:add", {
           detail: { name: it.item_name, qty: it.qty },
-        })
+        }),
       );
     });
   }
 
   /* ========== Realtime (singleton) ========== */
-  // --- replace the entire unsubscribeRealtime() with this ---
   async function unsubscribeRealtime() {
     const chans = [window.AppState?.achievementsCh, window.AppState?.lootCh];
 
     for (const ch of chans) {
       try {
-        if (ch && typeof ch.unsubscribe === 'function') {
-          await ch.unsubscribe(); // v2-safe
+        if (ch && typeof ch.unsubscribe === "function") {
+          await ch.unsubscribe();
         }
       } catch (e) {
-        console.warn('[achievements] unsubscribeRealtime', e);
+        console.warn("[achievements] unsubscribeRealtime", e);
       }
     }
 
@@ -543,11 +542,9 @@
     window.AppState._awardsSubFor = null;
   }
 
-  // --- replace the entire subscribeRealtime() with this ---
-  function subscribeRealtime(characterId) {
+  async function subscribeRealtime(characterId) {
     if (!characterId || !sb) return;
 
-    // If we already have subscriptions for this character, do nothing
     if (
       window.AppState._awardsSubFor === characterId &&
       (window.AppState.achievementsCh || window.AppState.lootCh)
@@ -555,112 +552,50 @@
       return;
     }
 
-    // Clean any old channels (defensive; safe if none exist)
-    unsubscribeRealtime(); // note: it's async, but we don't need to await here
+    await unsubscribeRealtime();
 
-    if (typeof sb.channel === 'function') {
-      // achievements INSERTs
-      window.AppState.achievementsCh = sb
-        .channel('achievements:' + characterId)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'achievements',
-            filter: `character_id=eq.${characterId}`,
-          },
-          () => scheduleRefresh()
-        )
-        .subscribe();
-
-      // loot_boxes INSERT/UPDATE
-      window.AppState.lootCh = sb
-        .channel('loot_boxes:' + characterId)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'loot_boxes',
-            filter: `character_id=eq.${characterId}`,
-          },
-          () => scheduleRefresh()
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'loot_boxes',
-            filter: `character_id=eq.${characterId}`,
-          },
-          () => scheduleRefresh()
-        )
-        .subscribe();
-    } else {
-      console.warn('[achievements] Realtime channel API not available');
-    }
-
-    window.AppState._awardsSubFor = characterId;
-  }
-
-  function subscribeRealtime(characterId) {
-    if (!characterId || !sb) return;
-    // Idempotent: if already subscribed for this character, skip
-    if (
-      window.AppState._awardsSubFor === characterId &&
-      (window.AppState.achievementsCh || window.AppState.lootCh)
-    ) {
+    if (typeof sb.channel !== "function") {
+      console.warn("[achievements] Realtime channel API not available");
       return;
     }
 
-    unsubscribeRealtime();
+    window.AppState.achievementsCh = sb
+      .channel("achievements:" + characterId)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "achievements",
+          filter: `character_id=eq.${characterId}`,
+        },
+        () => scheduleRefresh(),
+      )
+      .subscribe();
 
-    if (typeof sb.channel === 'function') {
-      // achievements INSERTs
-      window.AppState.achievementsCh = sb
-        .channel('achievements:' + characterId)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'achievements',
-            filter: `character_id=eq.${characterId}`,
-          },
-          () => scheduleRefresh()
-        )
-        .subscribe();
-
-      // loot_boxes INSERT/UPDATE
-      window.AppState.lootCh = sb
-        .channel('loot_boxes:' + characterId)
-        .on(
-          'postgres_changes',
-          {
-            event: 'INSERT',
-            schema: 'public',
-            table: 'loot_boxes',
-            filter: `character_id=eq.${characterId}`,
-          },
-          () => scheduleRefresh()
-        )
-        .on(
-          'postgres_changes',
-          {
-            event: 'UPDATE',
-            schema: 'public',
-            table: 'loot_boxes',
-            filter: `character_id=eq.${characterId}`,
-          },
-          () => scheduleRefresh()
-        )
-        .subscribe();
-    } else {
-      // (legacy supabase-js v1 could be handled here if you still need it)
-      console.warn('[achievements] Realtime channel API not available');
-    }
+    window.AppState.lootCh = sb
+      .channel("loot_boxes:" + characterId)
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "loot_boxes",
+          filter: `character_id=eq.${characterId}`,
+        },
+        () => scheduleRefresh(),
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "UPDATE",
+          schema: "public",
+          table: "loot_boxes",
+          filter: `character_id=eq.${characterId}`,
+        },
+        () => scheduleRefresh(),
+      )
+      .subscribe();
 
     window.AppState._awardsSubFor = characterId;
   }
@@ -680,30 +615,30 @@
   }
 
   // Re-render when user makes the Awards tab visible again (if we deferred)
-  document.addEventListener('visibilitychange', () => {
+  document.addEventListener("visibilitychange", () => {
     if (isDocVisible() && isAwardsActive() && refreshPending) {
       scheduleRefresh(0);
     }
   });
 
   // Watch tab switches (your tabs flip .active on #page-*)
-  document.addEventListener('click', (e) => {
-    const t = e.target.closest('.tab');
+  document.addEventListener("click", (e) => {
+    const t = e.target.closest(".tab");
     if (!t) return;
     const tabName = t.dataset.page || t.dataset.tab;
-    if (tabName === 'awards') {
+    if (tabName === "awards") {
       // Ensure realtime is connected and render (or catch up if deferred)
       const charId = window.AppState?.character?.id;
-      if (charId) subscribeRealtime(charId);
+      if (charId) subscribeRealtime(charId).catch(console.warn);
       scheduleRefresh(0);
     }
   });
 
   // Initial boot: when character becomes ready, wire realtime once
-  window.addEventListener('character:ready', () => {
+  window.addEventListener("character:ready", () => {
     const charId = window.AppState?.character?.id;
     if (!charId) return;
-    subscribeRealtime(charId);
+    subscribeRealtime(charId).catch(console.warn);
     // Only render now if Awards is already the visible tab; otherwise wait
     if (isAwardsActive()) scheduleRefresh(0);
   });
@@ -715,18 +650,19 @@
       try {
         return openBox(lootBoxId);
       } catch (e) {
-        console.warn('[awards] openLootBox failed', e);
+        console.warn("[awards] openLootBox failed", e);
         return null;
       }
     },
-    subscribe: (characterId) => subscribeRealtime(characterId), // no-op if already subscribed
+    subscribe: (characterId) =>
+      subscribeRealtime(characterId).catch(console.warn), // no-op if already subscribed
   };
 
   // Optional: manual init if DOM loads with Awards visible
-  document.addEventListener('DOMContentLoaded', () => {
+  document.addEventListener("DOMContentLoaded", () => {
     if (isAwardsActive()) {
       const charId = window.AppState?.character?.id;
-      if (charId) subscribeRealtime(charId);
+      if (charId) subscribeRealtime(charId).catch(console.warn);
       scheduleRefresh(0);
     }
   });
