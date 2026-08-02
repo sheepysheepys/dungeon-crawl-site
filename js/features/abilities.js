@@ -83,32 +83,76 @@
       }));
   }
 
+  function dedupeAbilities(items) {
+    const seen = new Set();
+    return items.filter((item) => {
+      const key = `${item.source || ''}|${item.name}|${item.level ?? 0}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  }
+
+  function splitDescription(text) {
+    return String(text || '')
+      .split(/\n\n+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+  }
+
+  function isLongDescription(text) {
+    const t = String(text || '').trim();
+    return t.length > 120 || splitDescription(t).length > 1;
+  }
+
+  function renderAbilityCard(item, opts = {}) {
+    const desc = item.description || '';
+    const paras = splitDescription(desc);
+    const long = isLongDescription(desc);
+
+    const card = el('details', {
+      class: `ability-card${long ? '' : ' ability-card--static'}`,
+    });
+    if (!long) card.open = true;
+
+    const summary = el('summary', { class: 'ability-card-summary' });
+    const head = el('div', { class: 'ability-card-head' });
+    head.append(el('span', { class: 'ability-card-name' }, item.name));
+
+    if (item.level) {
+      head.append(el('span', { class: 'ability-level-badge' }, `Lv ${item.level}`));
+    }
+    if (opts.showSlot && item.slot) {
+      head.append(
+        el('span', { class: 'ability-slot-badge' }, item.slot.toUpperCase())
+      );
+    }
+    summary.append(head);
+    card.append(summary);
+
+    if (paras.length) {
+      const body = el('div', { class: 'ability-card-body' });
+      paras.forEach((p) => body.append(el('p', { class: 'ability-card-desc' }, p)));
+      card.append(body);
+    }
+
+    return card;
+  }
+
   function renderSection(title, items, opts = {}) {
     if (!items.length) return null;
-    const section = el('div', { class: 'ability-section' });
-    section.append(el('h3', { class: 'ability-section-title' }, title));
+
+    const section = el('details', { class: 'ability-section' });
+    section.open = true;
+    const summary = el('summary', { class: 'ability-section-summary' });
+    summary.append(el('span', { class: 'ability-section-title' }, title));
+    summary.append(
+      el('span', { class: 'ability-section-count' }, String(items.length))
+    );
+    section.append(summary);
 
     const list = el('div', { class: 'ability-cards' });
-    items.forEach((item) => {
-      const card = el('div', { class: 'ability-card' });
-      const head = el('div', { class: 'ability-card-head' });
-      head.append(el('strong', { class: 'ability-card-name' }, item.name));
-
-      if (item.level) {
-        head.append(el('span', { class: 'ability-level-badge' }, `Lv ${item.level}`));
-      }
-      if (opts.showSlot && item.slot) {
-        head.append(
-          el('span', { class: 'ability-slot-badge' }, item.slot.toUpperCase())
-        );
-      }
-
-      card.append(head);
-      if (item.description) {
-        card.append(el('div', { class: 'ability-card-desc mono muted' }, item.description));
-      }
-      list.append(card);
-    });
+    items.forEach((item) => list.append(renderAbilityCard(item, opts)));
     section.append(list);
     return section;
   }
@@ -150,8 +194,17 @@
       loadEquipmentAbilities(characterId),
     ]);
 
-    const raceItems = [...apiRace, ...custom.filter((a) => a.source === 'race')];
-    const classItems = [...apiClass, ...custom.filter((a) => a.source === 'class')];
+    const raceItems = dedupeAbilities([
+      ...apiRace,
+      ...custom.filter((a) => a.source === 'race'),
+    ]);
+    const classItems = dedupeAbilities(
+      [...apiClass, ...custom.filter((a) => a.source === 'class')].sort(
+        (a, b) =>
+          (a.level ?? 0) - (b.level ?? 0) ||
+          String(a.name).localeCompare(String(b.name))
+      )
+    );
 
     const sections = [
       raceItems.length

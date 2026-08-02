@@ -514,16 +514,66 @@ textarea {
 }
 
 /* ===== ABILITY TAB (race / class / equipment) ===== */
+#abilitiesList {
+  display: grid;
+  gap: 12px;
+}
 .ability-section {
-  margin-bottom: 20px;
+  border: 1px solid var(--line2);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.02);
+  overflow: hidden;
+}
+.ability-section-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 14px;
+  cursor: pointer;
+  list-style: none;
+  user-select: none;
+  background: var(--surface-2);
+  border-bottom: 1px solid transparent;
+}
+.ability-section[open] > .ability-section-summary {
+  border-bottom-color: var(--line2);
+}
+.ability-section-summary::-webkit-details-marker {
+  display: none;
+}
+.ability-section-summary::before {
+  content: '▸';
+  color: var(--accent);
+  font-size: 12px;
+  transition: transform 0.15s ease;
+  flex-shrink: 0;
+}
+.ability-section[open] > .ability-section-summary::before {
+  transform: rotate(90deg);
 }
 .ability-section-title {
-  margin: 0 0 10px;
-  font-size: 14px;
+  margin: 0;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--accent);
+}
+.ability-section-count {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(155, 193, 255, 0.12);
+  color: var(--accent);
+}
+.ability-section--empty {
+  padding: 12px 14px;
+  margin-bottom: 0;
+}
+.ability-section--empty .ability-section-title {
+  margin-bottom: 6px;
 }
 .ability-section--empty .muted {
   margin: 0;
@@ -531,23 +581,53 @@ textarea {
 }
 .ability-cards {
   display: grid;
-  gap: 10px;
+  gap: 8px;
+  padding: 10px;
 }
 .ability-card {
   border: 1px solid var(--line2);
   border-radius: 10px;
-  padding: 12px 14px;
   background: var(--surface-2);
+  overflow: hidden;
+}
+.ability-card--static .ability-card-summary {
+  cursor: default;
+}
+.ability-card-summary {
+  display: block;
+  padding: 10px 12px;
+  cursor: pointer;
+  list-style: none;
+}
+.ability-card-summary::-webkit-details-marker {
+  display: none;
+}
+.ability-card:not(.ability-card--static) .ability-card-summary {
+  padding-left: 28px;
+  position: relative;
+}
+.ability-card:not(.ability-card--static) .ability-card-summary::before {
+  content: '▸';
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--muted);
+  font-size: 11px;
+  transition: transform 0.15s ease;
+}
+.ability-card[open]:not(.ability-card--static) .ability-card-summary::before {
+  transform: translateY(-50%) rotate(90deg);
 }
 .ability-card-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 8px;
-  margin-bottom: 6px;
 }
 .ability-card-name {
-  font-size: 15px;
+  font-size: 14px;
+  font-weight: 600;
 }
 .ability-level-badge,
 .ability-slot-badge {
@@ -564,10 +644,19 @@ textarea {
   background: rgba(98, 210, 111, 0.12);
   color: var(--good);
 }
+.ability-card-body {
+  padding: 0 12px 12px;
+  border-top: 1px solid var(--line2);
+  background: rgba(0, 0, 0, 0.12);
+}
 .ability-card-desc {
+  margin: 10px 0 0;
   font-size: 13px;
-  line-height: 1.5;
-  white-space: pre-wrap;
+  line-height: 1.55;
+  color: var(--muted);
+}
+.ability-card-desc:first-child {
+  margin-top: 10px;
 }
 
 /* ===== ACTIVE WEAPONS ===== */
