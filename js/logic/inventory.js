@@ -53,7 +53,7 @@
   // Equippable path (slot + armor/weapon)
   App.Logic.inventory.findOrCreateEquippableByAttrs = async function (
     sb,
-    { name, slot, kind, damage, armor_value, notes }
+    { name, slot, kind, damage, armor_value, notes, damage_stat }
   ) {
     const clean = (name || '').trim();
     const s = normSlot(slot);
@@ -73,6 +73,7 @@
     if (kind === 'weapon') {
       payload.damage = (damage || '').toString().trim() || null; // allow "1d6+1"
       payload.armor_value = null;
+      payload.damage_stat = App.Logic.weapons?.normStatKey?.(damage_stat) || 'strength';
     } else if (kind === 'armor') {
       payload.damage = null;
       payload.armor_value = Math.max(0, Number(armor_value || 0)) || 0;
@@ -86,7 +87,7 @@
     // Try to reuse an item with same name+slot (+ same damage/armor if provided)
     const { data: found, error: findErr } = await sb
       .from('items')
-      .select('id,name,slot,damage,armor_value')
+      .select('id,name,slot,damage,armor_value,damage_stat')
       .eq('name', clean)
       .eq('slot', s);
 
@@ -99,7 +100,9 @@
           : String(it.damage || '') === String(payload.damage)) &&
         (payload.armor_value == null
           ? true
-          : Number(it.armor_value || 0) === Number(payload.armor_value))
+          : Number(it.armor_value || 0) === Number(payload.armor_value)) &&
+        (kind !== 'weapon' ||
+          (it.damage_stat || 'strength') === (payload.damage_stat || 'strength'))
     );
     if (exact) return { item: exact };
 
@@ -107,7 +110,7 @@
     const { data: ins, error: insErr } = await sb
       .from('items')
       .insert(payload)
-      .select('id,name,slot,damage,armor_value')
+      .select('id,name,slot,damage,armor_value,damage_stat')
       .single();
     if (insErr) return { error: insErr.message };
     return { item: ins };

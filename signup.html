@@ -7,36 +7,17 @@
   <body>
     <h1>Sign Up</h1>
 
+    <div id="msg"></div>
+
     <input type="email" id="email" placeholder="Email" />
     <input type="password" id="password" placeholder="Password" />
-    <button id="signup-btn">Sign Up</button>
+    <div style="margin-top: 8px">
+      <button id="signup-btn">Sign Up</button>
+      <a href="login.html" id="to-login">Already have an account?</a>
+    </div>
 
-    <script type="module">
-      import { createClient } from 'https://esm.sh/@supabase/supabase-js';
-
-      const supabase = createClient(
-        'https://fqegrllwoskrfcnmzlod.supabase.co',
-        'YOUR_ANON_KEY'
-      );
-
-      document
-        .getElementById('signup-btn')
-        .addEventListener('click', async () => {
-          const email = document.getElementById('email').value;
-          const password = document.getElementById('password').value;
-
-          const { data, error } = await supabase.auth.signUp({
-            email,
-            password,
-          });
-
-          if (error) {
-            alert('Sign up error: ' + error.message);
-          } else {
-            localStorage.setItem('user', JSON.stringify(data.user));
-            window.location.href = 'character.html';
-          }
-        });
-    </script>
+    <!-- Shared Supabase config must run before any module -->
+    <script src="js/config.js"></script>
+    <script type="module" src="js/signup.js"></script>
   </body>
 </html>

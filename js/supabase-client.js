@@ -1,8 +1,15 @@
 // /js/supabase-client.js
 (function () {
-  const url = 'https://fqegrllwoskrfcnmzlod.supabase.co'; // no trailing slash
-  const anon =
-    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImZxZWdybGx3b3NrcmZjbm16bG9kIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ0ODk1ODEsImV4cCI6MjA3MDA2NTU4MX0.bI0gGkXD8U-C9lhOkWgJ0QN9swx0lLX5rFpVpI_D2DE';
+  const cfg = window.APP_CONFIG;
+  if (!cfg) {
+    console.error(
+      '[supabase-client] Missing window.APP_CONFIG — load js/config.js first.'
+    );
+    window.sb = null;
+    return;
+  }
+  const url = cfg.supabaseUrl; // no trailing slash
+  const anon = cfg.supabaseAnonKey;
 
   if (!window.supabase || typeof window.supabase.createClient !== 'function') {
     console.error(

@@ -5,15 +5,23 @@
     <title>Dungeon Crawler - Home</title>
   </head>
   <body>
+    <!-- Absolute paths: the directory-index URL has no trailing slash, so
+         relative paths would resolve against the site root instead. -->
+    <script src="/dungeon-crawl-site/js/config.js"></script>
     <script type="module">
-      const userStr = localStorage.getItem('user');
+      const { getUser, getRole, routeByRole, goto } = await import(
+        `${window.APP_CONFIG.basePath}js/auth.js`
+      );
 
-      if (!userStr) {
-        // No user stored, redirect to login
-        window.location.href = 'login.html';
+      const user = await getUser();
+      if (!user) {
+        goto('login.html');
       } else {
-        // Redirect logged-in user straight to character page
-        window.location.href = 'character.html';
+        try {
+          routeByRole(await getRole(user.id));
+        } catch {
+          goto('character.html');
+        }
       }
     </script>
   </body>

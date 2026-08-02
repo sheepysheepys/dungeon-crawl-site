@@ -15,6 +15,12 @@
         <div class="brand">
           <div class="brand-title">DUNGEON CRAWLER</div>
           <div class="brand-sub">Character Sheet</div>
+          <div class="account-bar">
+            <span id="acctEmail" class="muted">—</span>
+            <span id="acctRole" class="muted"></span>
+            <a id="lnkDmTools" href="#" hidden>DM Tools</a>
+            <button id="btnLogout" type="button">Log out</button>
+          </div>
         </div>
 
         <div class="id-grid id-grid--with-level">
@@ -31,10 +37,25 @@
             <span id="charClass" class="field-value">—</span>
           </label>
 
-          <div class="field level-field">
-            <span class="field-label">Level</span>
-            <div class="level-pill"><span id="charLevelNum">1</span></div>
-            <button id="btnLevelUp" class="btn-accent">Level Up</button>
+          <div class="field levels-field">
+            <div class="level-row">
+              <span class="field-label">Character</span>
+              <div class="level-pill">
+                <span id="charLevelNum">1</span>
+              </div>
+              <button id="btnLevelUpCharacter" class="btn-accent btn-level" type="button">
+                Level Up
+              </button>
+            </div>
+            <div class="level-row">
+              <span class="field-label">Class</span>
+              <div class="level-pill level-pill--class">
+                <span id="charClassLevelNum">1</span>
+              </div>
+              <button id="btnLevelUpClass" class="btn-accent btn-level" type="button">
+                Level Up Class
+              </button>
+            </div>
           </div>
         </div>
       </header>
@@ -466,6 +487,17 @@
                     placeholder="e.g., 1d6+1 or 6"
                   />
                 </label>
+                <label
+                  >Uses stat
+                  <select id="addItemDamageStat">
+                    <option value="strength">Strength</option>
+                    <option value="finesse">Finesse</option>
+                    <option value="agility">Agility</option>
+                    <option value="instinct">Instinct</option>
+                    <option value="presence">Presence</option>
+                    <option value="knowledge">Knowledge</option>
+                  </select>
+                </label>
               </div>
 
               <!-- Armor fields -->
@@ -517,36 +549,24 @@
         </section>
 
         <section class="page" id="page-viewership">
-          <div class="page" id="page-viewership">
-            <section class="box">
-              <h3>Viewership</h3>
-              <div
-                class="muted"
-                style="margin-top: 8px; text-align: center; padding: 20px"
-              >
-                📺 This feature is <strong>coming soon</strong>.<br />
-                Crawler viewer stats will not be released until the next floor.
-              </div>
-            </section>
-          </div>
-
-          <!-- <div class="grid stats3">
-            <div class="box">
-              <span class="label-corner">Fans</span>
-              <h3>Followers</h3>
-              <div class="big" id="followers">—</div>
-            </div>
+          <div class="grid stats3">
             <div class="box">
               <span class="label-corner">Live</span>
-              <h3>Live Viewers</h3>
-              <div class="big" id="liveViewers">—</div>
+              <h3>Viewers</h3>
+              <div class="big" id="vwViewers">—</div>
             </div>
             <div class="box">
-              <span class="label-corner">All-Time</span>
-              <h3>Lifetime Views</h3>
-              <div class="big" id="lifetimeViews">—</div>
+              <span class="label-corner">Fans</span>
+              <h3>Subscribers</h3>
+              <div class="big" id="vwSubscribers">—</div>
             </div>
-          </div> -->
+            <div class="box">
+              <span class="label-corner">Standing</span>
+              <h3>Viewership Rank</h3>
+              <div class="big" id="vwRank">—</div>
+            </div>
+          </div>
+          <div class="muted" id="vwUpdated" style="margin-top: 10px"></div>
         </section>
 
         <section id="page-awards" class="page">
@@ -611,10 +631,10 @@
         aria-modal="true"
         aria-labelledby="levelModalTitle"
       >
-        <h3 id="levelModalTitle">Level Up</h3>
+        <h3 id="levelModalTitle">Level Up Character</h3>
 
         <div class="muted" style="margin: 2px 0 10px">
-          You always gain <strong>+1 Max HP</strong>. Choose
+          Campaign level — you always gain <strong>+1 Max HP</strong>. Choose
           <strong>one</strong> bonus:
         </div>
 
@@ -666,6 +686,30 @@
       </div>
     </div>
 
+    <div class="modal-backdrop" id="classLevelModalBack">
+      <div
+        class="modal"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="classLevelModalTitle"
+      >
+        <h3 id="classLevelModalTitle">Level Up Class</h3>
+        <p class="muted" style="margin: 2px 0 14px">
+          Advance class level from
+          <strong id="classLuFrom">1</strong> to
+          <strong id="classLuTo">2</strong>. New class features appear on the
+          Abilities tab.
+        </p>
+        <div class="row">
+          <div class="spacer"></div>
+          <button id="btnConfirmClassLevelUp" class="btn-accent" type="button">
+            Confirm
+          </button>
+          <button id="btnCloseClassLevelModal" type="button">Close</button>
+        </div>
+      </div>
+    </div>
+
     <!-- /html/partials/repair-modal.html -->
     <div id="repairModal" class="modal hidden">
       <div class="modal-box">
@@ -710,6 +754,7 @@
     </div>
 
     <!-- scripts -->
+    <script src="/dungeon-crawl-site/js/config.js"></script>
     <script>
       window.App = window.App || { Features: {}, Logic: {} };
       window.AppState = window.AppState || { user: null, character: null };
@@ -735,12 +780,15 @@
     <script defer src="/dungeon-crawl-site/js/logic/inventory.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/rests.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/evasion.js"></script>
+    <script defer src="/dungeon-crawl-site/js/logic/weapons.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/combat.js"></script>
 
     <script defer src="/dungeon-crawl-site/js/features/inventory.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/equipment.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/dnd5e-api.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/abilities.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/notes.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/viewership.js"></script>
     <script
       defer
       src="/dungeon-crawl-site/js/features/repair-bench.js"

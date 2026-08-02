@@ -576,6 +576,7 @@ async function doAddNameBox() {
   const eqCb = document.getElementById("addItemEquippable");
   const slotSel = document.getElementById("addItemSlot");
   const dmgEl = document.getElementById("addItemDamage");
+  const statEl = document.getElementById("addItemDamageStat");
   const avEl = document.getElementById("addItemArmor");
   const msgEl = document.getElementById("addItemMsg");
   const kind =
@@ -620,6 +621,7 @@ async function doAddNameBox() {
         slot,
         kind,
         damage: dmgEl?.value || "",
+        damage_stat: statEl?.value || "strength",
         armor_value: avEl?.value || 0,
         notes: "", // or pull from a notes input if you add one
       });
@@ -718,22 +720,49 @@ async function renderActiveWeapons() {
   const empty = document.getElementById("weaponsEmpty");
   if (!sb || !chId || !root) return;
 
-  // Pull both slots
+  const weaponsLogic = window.App?.Logic?.weapons;
+
+  let statsRow = window.AppState?.stats;
+  if (!statsRow) {
+    const { data } = await sb
+      .from("character_stats")
+      .select("*")
+      .eq("character_id", chId)
+      .maybeSingle();
+    statsRow = data || {};
+    window.AppState.stats = statsRow;
+  }
+
   const { data = [], error } = await sb
     .from("character_equipment")
-    .select("slot, item_id, item:items(name, damage)")
+    .select("slot, item_id, item:items(name, damage, damage_stat, notes)")
     .eq("character_id", chId)
     .in("slot", ["weapon", "offhand"]);
 
   if (error) {
+    // damage_stat column may be missing until migration 005 is applied.
+    if (String(error.message || "").includes("damage_stat")) {
+      const retry = await sb
+        .from("character_equipment")
+        .select("slot, item_id, item:items(name, damage, notes)")
+        .eq("character_id", chId)
+        .in("slot", ["weapon", "offhand"]);
+      if (retry.error) {
+        console.warn("[weapons] query error", retry.error);
+        return;
+      }
+      return renderWeaponRows(retry.data, statsRow, root, empty, weaponsLogic);
+    }
     console.warn("[weapons] query error", error);
     return;
   }
 
-  // Keep ONLY equipped rows (item_id present)
+  renderWeaponRows(data, statsRow, root, empty, weaponsLogic);
+}
+
+function renderWeaponRows(data, statsRow, root, empty, weaponsLogic) {
   const rows = (data || []).filter((r) => !!r.item_id);
 
-  // Sort so WEAPON is always above OFFHAND
   const order = { weapon: 0, offhand: 1 };
   rows.sort((a, b) => (order[a.slot] ?? 99) - (order[b.slot] ?? 99));
 
@@ -745,16 +774,32 @@ async function renderActiveWeapons() {
   }
   if (empty) empty.style.display = "none";
 
-  // Render compact rows
   for (const r of rows) {
+    const line = weaponsLogic?.computeWeaponLine?.(r.item, statsRow) || {
+      display: r.item?.damage || "—",
+      statAbbr: null,
+      mod: 0,
+    };
+
+    const dmgHtml = line.display
+      ? `<span class="weapon-dmg mono">${escapeHtml(line.display)}</span>`
+      : "";
+    const statHtml =
+      line.statAbbr && r.item?.damage
+        ? `<span class="weapon-stat muted">${escapeHtml(
+            `${line.statAbbr} ${line.mod >= 0 ? "+" : ""}${line.mod}`,
+          )}</span>`
+        : "";
+
     const div = document.createElement("div");
-    div.className = "row";
+    div.className = "row weapon-row";
     div.innerHTML = `
-      <div>${(r.slot || "").toUpperCase()}: ${r.item?.name || "—"}
-        <span class="muted mono">${r.item?.damage ?? ""}</span>
+      <div class="weapon-row-main">
+        <div>${escapeHtml((r.slot || "").toUpperCase())}: ${escapeHtml(r.item?.name || "—")}</div>
+        <div class="weapon-row-dmg">${dmgHtml}${statHtml ? " " + statHtml : ""}</div>
       </div>
       <div class="spacer"></div>
-      <button class="btn-tiny" data-unequip-slot="${r.slot}">Unequip</button>
+      <button class="btn-tiny" data-unequip-slot="${escapeHtml(r.slot)}">Unequip</button>
     `;
     root.appendChild(div);
   }
@@ -1043,6 +1088,40 @@ window.addEventListener("character:ready", (e) => {
   }
 });
 
+async function wireAccountBar(client, user) {
+  const base = window.APP_CONFIG?.basePath || "/";
+  setText?.("acctEmail", user.email || user.id);
+
+  const btn = document.getElementById("btnLogout");
+  btn?.addEventListener("click", async () => {
+    btn.disabled = true;
+    try {
+      await client.auth.signOut();
+    } finally {
+      window.location.replace(`${base}login.html`);
+    }
+  });
+
+  let role = "player";
+  try {
+    const { data } = await client
+      .from("profiles")
+      .select("role")
+      .eq("id", user.id)
+      .maybeSingle();
+    role = data?.role || "player";
+  } catch (e) {
+    console.warn("[account] role lookup failed", e);
+  }
+  setText?.("acctRole", role);
+
+  const dmLink = document.getElementById("lnkDmTools");
+  if (dmLink && role === "dm") {
+    dmLink.href = `${base}dm.html`;
+    dmLink.hidden = false;
+  }
+}
+
 async function init() {
   if (window.__CHAR_SHEET_INIT_DONE) return;
   window.__CHAR_SHEET_INIT_DONE = true;
@@ -1054,26 +1133,31 @@ async function init() {
   }
 
   // ---- auth ----
-  const { data: { user } = {}, error: userErr } = await client.auth.getUser();
-  console.log("[auth] getUser", { user, userErr });
+  const { data: { user } = {} } = await client.auth.getUser();
   if (!user) {
-    setText?.("msg", "Not logged in.");
+    const base = window.APP_CONFIG?.basePath || "/";
+    window.location.replace(`${base}login.html`);
     return;
   }
+
+  // Wire this before the character lookup so an account with no character
+  // can still sign out or reach DM tools.
+  await wireAccountBar(client, user);
 
   // ---- character ----
   const { data: c, error: charErr } = await client
     .from("characters")
     .select(
-      "id,user_id,name,race,class,level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes",
+      "id,user_id,name,race,class,level,class_level,evasion,hp_current,hp_total,dmg_minor,dmg_major,dmg_severe,hope_points,exoskin_slots_max,exoskin_slots_remaining,notes",
     )
     .eq("user_id", user.id)
+    .eq("is_active", true)
     .order("created_at", { ascending: true })
     .limit(1)
     .maybeSingle();
 
   if (charErr || !c) {
-    setText?.("msg", charErr?.message || "No character.");
+    setText?.("msg", charErr?.message || "No active character.");
     return;
   }
 
@@ -1088,7 +1172,10 @@ async function init() {
       .eq("character_id", c.id)
       .maybeSingle();
     if (statsErr) setText?.("msg", "Error loading stats: " + statsErr.message);
-    else renderAllTraits?.(statsRow || {});
+    else {
+      window.AppState.stats = statsRow || {};
+      renderAllTraits?.(statsRow || {});
+    }
   } catch (e) {
     console.warn("[stats] unexpected", e);
   }
@@ -1106,6 +1193,7 @@ async function init() {
   setText?.("charRace", c.race ?? "—");
   setText?.("charClass", c["class"] ?? "—");
   setText?.("charLevelNum", c.level ?? "—");
+  setText?.("charClassLevelNum", c.class_level ?? 1);
   setText?.("evasion", c.evasion ?? "—");
   setText?.("ownerEmail", user.email || "—");
   setText?.("ownerId", c.user_id || "—");
@@ -1172,11 +1260,12 @@ async function init() {
   // ---- XP boot (unchanged) ----
   await bootExperiences(c.id);
 
-  // ---- Level Up wiring (NEW) ----
+  // ---- Level Up wiring ----
   try {
     if (!window.__WIRED_LEVELUP) {
-      wireLevelUp();
-      window.__WIRED_LEVELUP = true; // guard against double-binding
+      wireCharacterLevelUp();
+      wireClassLevelUp();
+      window.__WIRED_LEVELUP = true;
     }
   } catch (e) {
     console.warn("[levelup] wire failed", e);
@@ -1186,9 +1275,11 @@ async function init() {
   setText?.("msg", "");
 }
 
-// ================= LEVEL UP (stub) =================
-function wireLevelUp() {
-  const openBtn = document.getElementById("btnLevelUp");
+// ================= CHARACTER LEVEL UP =================
+const MAX_CLASS_LEVEL = 20;
+
+function wireCharacterLevelUp() {
+  const openBtn = document.getElementById("btnLevelUpCharacter");
   const back = document.getElementById("levelModalBack");
   const closeBtn = document.getElementById("btnCloseLevelModal");
   const confirmBtn = document.getElementById("btnConfirmLevelUp");
@@ -1350,14 +1441,84 @@ function wireLevelUp() {
       await App.Logic.evasion.refreshStatsAndEvasion(sb, ch.id);
     }
 
-    const featMsg = ch.level % 6 === 0 ? " — Feat unlocked (coming soon)!" : "";
+    await renderActiveWeapons?.();
+
+    const featMsg =
+      ch.level % 6 === 0 ? " — Feat unlocked (coming soon)!" : "";
     setText?.(
       "msg",
-      `Leveled up to ${ch.level}! (+${hpGain} Max HP, +${hpGain} Current HP)` +
+      `Character level ${ch.level}! (+${hpGain} Max HP, +${hpGain} Current HP)` +
         (statKey ? ` (+1 ${statKey.replace(/_/g, " ")})` : "") +
         featMsg,
     );
 
+    back.classList.remove("show");
+  });
+}
+
+function wireClassLevelUp() {
+  const openBtn = document.getElementById("btnLevelUpClass");
+  const back = document.getElementById("classLevelModalBack");
+  const closeBtn = document.getElementById("btnCloseClassLevelModal");
+  const confirmBtn = document.getElementById("btnConfirmClassLevelUp");
+  const fromEl = document.getElementById("classLuFrom");
+  const toEl = document.getElementById("classLuTo");
+
+  if (!openBtn || !back) return;
+
+  openBtn.addEventListener("click", () => {
+    const ch = window.AppState?.character;
+    const cur = Math.max(1, Number(ch?.class_level) || 1);
+    if (cur >= MAX_CLASS_LEVEL) {
+      setText?.("msg", `Class level is already at the maximum (${MAX_CLASS_LEVEL}).`);
+      return;
+    }
+    if (fromEl) fromEl.textContent = String(cur);
+    if (toEl) toEl.textContent = String(cur + 1);
+    back.classList.add("show");
+  });
+
+  closeBtn?.addEventListener("click", () => back.classList.remove("show"));
+
+  confirmBtn?.addEventListener("click", async () => {
+    const sb = window.sb;
+    const ch = window.AppState?.character;
+    if (!sb || !ch?.id) return;
+
+    const cur = Math.max(1, Number(ch.class_level) || 1);
+    if (cur >= MAX_CLASS_LEVEL) {
+      setText?.("msg", `Class level is already at the maximum (${MAX_CLASS_LEVEL}).`);
+      back.classList.remove("show");
+      return;
+    }
+
+    const nextClassLevel = cur + 1;
+
+    const { data: charData, error: charErr } = await sb
+      .from("characters")
+      .update({ class_level: nextClassLevel })
+      .eq("id", ch.id)
+      .select("id, class_level")
+      .single();
+
+    if (charErr) {
+      console.error("[class-levelup] update failed", charErr);
+      setText?.("msg", "Class level up failed.");
+      return;
+    }
+
+    Object.assign(ch, charData);
+    setText?.("charClassLevelNum", String(ch.class_level));
+
+    try {
+      await App.Features.abilities.render?.(ch.id);
+    } catch (e) {
+      console.warn("[class-levelup] abilities refresh failed", e);
+    }
+
+    await renderActiveWeapons?.();
+
+    setText?.("msg", `Class level ${ch.class_level}! Check the Abilities tab for new features.`);
     back.classList.remove("show");
   });
 }

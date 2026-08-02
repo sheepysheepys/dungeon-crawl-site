@@ -2,58 +2,261 @@
 <html>
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>DM Tools</title>
 
     <link rel="stylesheet" href="/dungeon-crawl-site/css/dm.css" />
 
+    <script src="/dungeon-crawl-site/js/config.js"></script>
     <script
       defer
       src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"
     ></script>
   </head>
-  <body style="max-width: 860px; margin: 24px auto; padding: 16px">
-    <h2>DM: Grant Achievement / Loot Box</h2>
-    <div id="dmApp" class="box">
-      <div class="row">
-        <label>
-          Character:
-          <select id="dmChar">
-            <option value="">Loading…</option>
-          </select>
-        </label>
-        <label>
-          Rarity:
-          <select id="dmRarity">
-            <option>common</option>
-            <option>uncommon</option>
-            <option>rare</option>
-            <option>epic</option>
-            <option>legendary</option>
-          </select>
-        </label>
+  <body>
+    <header class="topbar">
+      <div class="topbar-inner">
+        <h1>DM Tools</h1>
+        <div class="spacer"></div>
+        <div id="dmAccount" class="acct" hidden>
+          <span id="dmEmail" class="muted"></span>
+          <a id="dmCharLink" href="#">Character Sheet</a>
+          <button id="dmLogout" type="button">Log out</button>
+        </div>
       </div>
-      <div class="row" style="margin-top: 8px">
-        <input
-          id="dmTitle"
-          type="text"
-          placeholder="Achievement title…"
-          style="flex: 1"
-        />
-      </div>
+    </header>
 
-      <div class="row" style="margin-top: 8px">
-        <input
-          id="dmDesc"
-          type="text"
-          placeholder="Achievement description…"
-          style="flex: 1"
-        />
-      </div>
-      <div class="row" style="justify-content: flex-end; margin-top: 10px">
-        <button id="btnGrantAch" class="btn-accent">Grant Achievement</button>
-        <button id="btnGrantBox" class="btn-good">Grant Loot Box</button>
-      </div>
-      <div id="dmMsg" class="muted" style="margin-top: 8px"></div>
+    <div id="dmStatus" class="muted page-status"></div>
+
+    <div id="dmApp" class="layout">
+      <!-- Roster doubles as the character picker -->
+      <aside class="roster">
+        <div class="roster-head">
+          <input
+            id="dmSearch"
+            type="search"
+            placeholder="Search characters…"
+            autocomplete="off"
+          />
+          <button id="btnRefresh" type="button" title="Reload characters">
+            Refresh
+          </button>
+        </div>
+        <div id="dmRoster" class="roster-list muted">Loading…</div>
+        <div class="roster-foot">
+          <input
+            id="dmReactivateName"
+            type="text"
+            placeholder="Reactivate by name…"
+            autocomplete="off"
+          />
+          <button id="btnReactivate" type="button">Reactivate</button>
+          <div id="dmReactivateMsg" class="muted"></div>
+        </div>
+      </aside>
+
+      <main class="detail">
+        <!-- Stays visible across tabs so the target is never ambiguous -->
+        <div class="detail-head">
+          <div class="detail-name" id="dmSelName">No character selected</div>
+          <div class="detail-sub muted" id="dmSelSub"></div>
+        </div>
+
+        <nav class="tabs" id="dmTabs">
+          <button class="tab is-active" type="button" data-tab="overview">
+            Overview
+          </button>
+          <button class="tab" type="button" data-tab="edit">Edit Sheet</button>
+          <button class="tab" type="button" data-tab="grants">Grants</button>
+          <button class="tab" type="button" data-tab="viewership">
+            Viewership
+          </button>
+          <button class="tab" type="button" data-tab="standings">
+            Standings
+          </button>
+        </nav>
+
+        <section class="tabpane is-active" id="pane-overview">
+          <div id="dmOverview" class="muted">Select a character.</div>
+        </section>
+
+        <section class="tabpane" id="pane-edit">
+          <form id="dmEditForm" class="stack edit-form">
+            <div class="section-label">Identity</div>
+            <div class="field-row">
+              <label>Name <input id="dmEdName" type="text" autocomplete="off" /></label>
+              <label>Race <input id="dmEdRace" type="text" autocomplete="off" /></label>
+              <label>Class <input id="dmEdClass" type="text" autocomplete="off" /></label>
+            </div>
+            <div class="field-row">
+              <label>Character level <input id="dmEdLevel" type="number" min="1" step="1" /></label>
+              <label>Class level <input id="dmEdClassLevel" type="number" min="1" step="1" /></label>
+            </div>
+
+            <div class="section-label">Vitals</div>
+            <div class="field-row">
+              <label>HP current <input id="dmEdHpCur" type="number" min="0" step="1" /></label>
+              <label>HP max <input id="dmEdHpTot" type="number" min="0" step="1" /></label>
+              <label>Evasion <input id="dmEdEvasion" type="number" step="1" /></label>
+            </div>
+            <div class="field-row">
+              <label>Hope <input id="dmEdHope" type="number" min="0" step="1" /></label>
+              <label>Stress <input id="dmEdStress" type="number" min="0" step="1" /></label>
+              <label>Armor HP <input id="dmEdArmorHp" type="number" min="0" step="1" /></label>
+            </div>
+            <div class="field-row">
+              <label>Stripping level <input id="dmEdStripping" type="number" min="0" step="1" /></label>
+              <label>Exoskin max <input id="dmEdExoMax" type="number" min="0" step="1" /></label>
+              <label>Exoskin left <input id="dmEdExoRem" type="number" min="0" step="1" /></label>
+            </div>
+            <div class="field-row">
+              <label>Dmg minor <input id="dmEdDmgMinor" type="number" step="1" /></label>
+              <label>Dmg major <input id="dmEdDmgMajor" type="number" step="1" /></label>
+              <label>Dmg severe <input id="dmEdDmgSevere" type="number" step="1" /></label>
+            </div>
+            <div class="field-row">
+              <label>Threshold T1 <input id="dmEdDmgT1" type="number" step="1" /></label>
+              <label>Threshold T2 <input id="dmEdDmgT2" type="number" step="1" /></label>
+            </div>
+
+            <div class="section-label">Ability scores</div>
+            <div class="field-row">
+              <label>Strength <input id="dmEdStr" type="number" min="1" max="20" step="1" /></label>
+              <label>Agility <input id="dmEdAgi" type="number" min="1" max="20" step="1" /></label>
+              <label>Finesse <input id="dmEdFin" type="number" min="1" max="20" step="1" /></label>
+            </div>
+            <div class="field-row">
+              <label>Instinct <input id="dmEdIns" type="number" min="1" max="20" step="1" /></label>
+              <label>Presence <input id="dmEdPre" type="number" min="1" max="20" step="1" /></label>
+              <label>Knowledge <input id="dmEdKno" type="number" min="1" max="20" step="1" /></label>
+            </div>
+
+            <div class="section-label">Notes</div>
+            <label class="block">
+              Character notes
+              <textarea id="dmEdNotes" rows="4"></textarea>
+            </label>
+
+            <div class="btn-row end">
+              <button id="btnEdReload" type="button">Reload</button>
+              <button id="btnEdSave" class="btn-accent" type="submit">Save changes</button>
+            </div>
+            <div id="dmEditMsg" class="muted"></div>
+          </form>
+        </section>
+
+        <section class="tabpane" id="pane-grants">
+          <div class="stack">
+            <div class="field-row">
+              <label>
+                Rarity
+                <select id="dmRarity">
+                  <option>common</option>
+                  <option>uncommon</option>
+                  <option>rare</option>
+                  <option>epic</option>
+                  <option>legendary</option>
+                </select>
+              </label>
+            </div>
+            <label class="block">
+              Achievement title
+              <input id="dmTitle" type="text" placeholder="Title…" />
+            </label>
+            <label class="block">
+              Description
+              <input id="dmDesc" type="text" placeholder="Optional…" />
+            </label>
+
+            <div class="action-group">
+              <div class="action-group-label">
+                Selected: <strong id="dmGrantTarget">—</strong>
+              </div>
+              <div class="btn-row">
+                <button id="btnGrantAch" class="btn-accent" type="button">
+                  Grant Achievement
+                </button>
+                <button id="btnGrantBox" class="btn-good" type="button">
+                  Grant Loot Box
+                </button>
+              </div>
+            </div>
+
+            <div class="action-group danger">
+              <div class="action-group-label">Everyone (all active characters)</div>
+              <div class="btn-row">
+                <button id="btnGrantAchAll" type="button">
+                  Achievement to Everyone
+                </button>
+                <button id="btnGrantBoxAll" type="button">
+                  Loot Box to Everyone
+                </button>
+              </div>
+            </div>
+
+            <div id="dmMsg" class="muted"></div>
+          </div>
+        </section>
+
+        <section class="tabpane" id="pane-viewership">
+          <div class="stack">
+            <div class="kv-grid">
+              <div class="kv">
+                <span class="kv-label">Current viewers</span>
+                <span class="kv-value" id="dmVwCurViewers">—</span>
+              </div>
+              <div class="kv">
+                <span class="kv-label">Current subscribers</span>
+                <span class="kv-value" id="dmVwCurSubs">—</span>
+              </div>
+              <div class="kv">
+                <span class="kv-label">Current rank</span>
+                <span class="kv-value" id="dmVwCurRank">—</span>
+              </div>
+            </div>
+
+            <div class="field-row">
+              <label class="inline">
+                <input type="radio" name="dmVwMode" value="add" checked />
+                Add to current
+              </label>
+              <label class="inline">
+                <input type="radio" name="dmVwMode" value="set" />
+                Set exact value
+              </label>
+            </div>
+
+            <div class="field-row">
+              <label>
+                Viewers
+                <input id="dmVwViewers" type="number" placeholder="—" />
+              </label>
+              <label>
+                Subscribers
+                <input id="dmVwSubs" type="number" placeholder="—" />
+              </label>
+              <label>
+                Rank (always exact)
+                <input id="dmVwRank" type="number" min="1" placeholder="—" />
+              </label>
+            </div>
+
+            <div id="dmVwPreview" class="preview">Preview: no changes.</div>
+
+            <div class="btn-row end">
+              <button id="btnVwClear" type="button">Clear All Three</button>
+              <button id="btnVwSave" class="btn-accent" type="button">
+                Save Viewership
+              </button>
+            </div>
+            <div id="dmVwMsg" class="muted"></div>
+          </div>
+        </section>
+
+        <section class="tabpane" id="pane-standings">
+          <div id="dmVwBoard" class="muted">Loading…</div>
+        </section>
+      </main>
     </div>
 
     <!-- Your client factory (creates the Supabase client) -->

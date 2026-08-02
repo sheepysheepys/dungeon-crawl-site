@@ -91,6 +91,18 @@ body {
   font-size: 12px;
   opacity: 0.8;
 }
+.account-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 11px;
+  opacity: 0.85;
+}
+.account-bar button,
+.account-bar a {
+  font-size: 11px;
+}
 
 .id-grid {
   display: grid;
@@ -120,6 +132,27 @@ body {
 }
 
 /* Level block */
+.levels-field {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-2);
+  min-width: 260px;
+}
+.level-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.level-row .field-label {
+  min-width: 72px;
+  margin: 0;
+  font-size: 10px;
+}
 .level-field {
   height: var(--header-cell-h);
   display: flex;
@@ -129,34 +162,31 @@ body {
 .level-field .field-label {
   margin-right: 6px;
 }
-#btnLevelUp {
-  font-size: 13px;
-  padding: 4px 10px;
+#btnLevelUpCharacter,
+#btnLevelUpClass,
+.btn-level {
+  font-size: 11px;
+  padding: 4px 8px;
   line-height: 1.2;
+  white-space: nowrap;
 }
 .level-pill {
-  height: calc(var(--header-cell-h) - 12px);
-  min-width: 96px;
+  height: 32px;
+  min-width: 44px;
   display: grid;
   place-items: center;
   padding: 0 10px;
   border: 2px solid var(--sheet-edge);
-  border-radius: 14px;
+  border-radius: 12px;
   background: linear-gradient(180deg, #111826, #0b0f1a);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  clip-path: polygon(
-    10% 0,
-    90% 0,
-    100% 18%,
-    100% 82%,
-    90% 100%,
-    10% 100%,
-    0 82%,
-    0 18%
-  );
   font-weight: 800;
-  font-size: 18px;
+  font-size: 16px;
   line-height: 1;
+}
+.level-pill--class {
+  border-color: #3d5a80;
+  background: linear-gradient(180deg, #152238, #0d1524);
 }
 .level-actions {
   display: flex;
@@ -170,7 +200,8 @@ body {
   .id-grid {
     grid-template-columns: repeat(2, 1fr);
   }
-  .level-field {
+  .level-field,
+  .levels-field {
     grid-column: 1 / -1;
     justify-self: start;
   }
@@ -479,6 +510,82 @@ textarea {
   font-weight: 700;
 }
 .choice-content .choice-desc {
+  font-size: 12px;
+}
+
+/* ===== ABILITY TAB (race / class / equipment) ===== */
+.ability-section {
+  margin-bottom: 20px;
+}
+.ability-section-title {
+  margin: 0 0 10px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--accent);
+}
+.ability-section--empty .muted {
+  margin: 0;
+  font-size: 13px;
+}
+.ability-cards {
+  display: grid;
+  gap: 10px;
+}
+.ability-card {
+  border: 1px solid var(--line2);
+  border-radius: 10px;
+  padding: 12px 14px;
+  background: var(--surface-2);
+}
+.ability-card-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.ability-card-name {
+  font-size: 15px;
+}
+.ability-level-badge,
+.ability-slot-badge {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(155, 193, 255, 0.12);
+  color: var(--accent);
+}
+.ability-slot-badge {
+  background: rgba(98, 210, 111, 0.12);
+  color: var(--good);
+}
+.ability-card-desc {
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* ===== ACTIVE WEAPONS ===== */
+.weapon-row-main {
+  display: grid;
+  gap: 2px;
+}
+.weapon-row-dmg {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.weapon-dmg {
+  font-size: 14px;
+  color: var(--text);
+}
+.weapon-stat {
   font-size: 12px;
 }
 

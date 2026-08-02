@@ -9,13 +9,25 @@
 
     <div id="msg"></div>
 
-    <input type="email" id="email" placeholder="Email" />
-    <input type="password" id="password" placeholder="Password" />
-    <div style="margin-top: 8px">
-      <button id="login-btn">Login</button>
-      <button id="signup-btn">Sign Up</button>
+    <!-- Shown when a session already exists, so you can switch accounts
+         instead of being bounced straight back to your character. -->
+    <div id="signed-in" hidden>
+      <p>Signed in as <strong id="signed-in-email">—</strong> (<span id="signed-in-role">—</span>)</p>
+      <button id="continue-btn">Continue</button>
+      <button id="logout-btn">Log out</button>
     </div>
 
+    <div id="login-form">
+      <input type="email" id="email" placeholder="Email" />
+      <input type="password" id="password" placeholder="Password" />
+      <div style="margin-top: 8px">
+        <button id="login-btn">Login</button>
+        <button id="signup-btn">Sign Up</button>
+      </div>
+    </div>
+
+    <!-- Shared Supabase config must run before any module -->
+    <script src="js/config.js"></script>
     <!-- Load page script (which imports js/auth.js) -->
     <script type="module" src="js/login.js"></script>
   </body>
