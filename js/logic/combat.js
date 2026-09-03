@@ -2,6 +2,15 @@
 (function (App) {
   const ARMOR_SLOTS = ['head', 'chest', 'legs', 'hands', 'feet'];
 
+  // Strip hits: light 1, heavy 1, brutal 2 (HP loss tiers stay separate).
+  function stripHitsFromDamage(amount, t1, t2) {
+    const r = Math.max(0, Number(amount || 0));
+    if (r === 0) return 0;
+    if (r <= t1) return 1;
+    if (r <= t2) return 1;
+    return 2;
+  }
+
   // -------- thresholds --------
   async function loadThresholds(sb, chId) {
     const { data } = await sb
@@ -53,123 +62,198 @@
     }
   }
 
-  // -------- target selection used by both preview/apply --------
-  function pickRandomSlotWithExo(rows) {
-    const candidates = rows.filter((r) => Number(r?.exo_left || 0) > 0);
-    if (!candidates.length) return null;
-    const i = Math.floor(Math.random() * candidates.length);
-    return candidates[i].slot;
+  function eligibleStripRows(rows) {
+    return (rows || []).filter(
+      (r) =>
+        !r._deleted &&
+        (Number(r.slots_remaining || 0) > 0 || Number(r.exo_left || 0) > 0)
+    );
+  }
+
+  /** Slots with equipped armor that still has segments left. */
+  function armoredSlots(rows) {
+    return (rows || []).filter(
+      (r) =>
+        r.item_id && Number(r.slots_remaining || 0) > 0
+    );
+  }
+
+  const ARMOR_BLOCK_CHANCE = 0.5;
+
+  /** 50% chance to block 1 damage if any equipped armor has segments left. */
+  function rollArmorBlock(rows) {
+    const armored = armoredSlots(rows);
+    if (!armored.length) {
+      return { blocked: false, slot: null };
+    }
+    if (Math.random() >= ARMOR_BLOCK_CHANCE) {
+      return { blocked: false, slot: null };
+    }
+    const pick = armored[Math.floor(Math.random() * armored.length)];
+    return { blocked: true, slot: pick?.slot || null };
+  }
+
+  function pickRandomStripTarget(rows) {
+    const elig = eligibleStripRows(rows);
+    if (!elig.length) return null;
+    return elig[Math.floor(Math.random() * elig.length)];
+  }
+
+  function mitigationFor(amount, blocked) {
+    return blocked ? Math.max(0, Number(amount || 0) - 1) : Math.max(0, Number(amount || 0));
   }
 
   /**
-   * Decide what this hit *would* strike:
-   * - if no exo anywhere → 'none'
-   * - pick a random exo slot; if that slot has armor segments > 0 → 'armor', else 'exo'
+   * Spend one strip hit on a slot (armor first, then exo).
+   * Returns 'armor' | 'exo' | false.
    */
-  function decideStripOutcome(rows) {
-    const slot = pickRandomSlotWithExo(rows);
-    if (!slot) return { type: 'none', slot: null, row: null };
+  async function spendOneStripHit(sb, target, log) {
+    if (!target || target._deleted) return false;
 
-    const row = rows.find((r) => r.slot === slot);
-    const hasArmorSeg = Number(row?.slots_remaining || 0) > 0;
-    return { type: hasArmorSeg ? 'armor' : 'exo', slot, row };
-  }
+    let armorLeft = Math.max(0, Number(target.slots_remaining || 0));
+    let exoLeft = Math.max(0, Number(target.exo_left || 0));
+    const tag = (target.slot || '—').toUpperCase();
 
-  /**
-   * Commit the strip outcome chosen above to DB.
-   * - If 'armor': decrement slots_remaining by 1
-   * - If 'exo'  : set exo_left = 0
-   * - If 'none' : no-op
-   */
-  async function applyChosenStrip(sb, outcome) {
-    if (!outcome || !outcome.row) return { type: 'none', slot: null };
-    if (outcome.type === 'armor') {
-      const next = Math.max(0, Number(outcome.row.slots_remaining || 0) - 1);
+    if (armorLeft > 0) {
+      armorLeft -= 1;
       await sb
         .from('character_equipment')
-        .update({ slots_remaining: next })
-        .eq('id', outcome.row.id);
-      return { type: 'armor', slot: outcome.slot, newValue: next };
+        .update({ slots_remaining: armorLeft })
+        .eq('id', target.id);
+      target.slots_remaining = armorLeft;
+      log.push(`${tag}: armor -1`);
+      return 'armor';
     }
-    if (outcome.type === 'exo') {
+
+    if (exoLeft > 0) {
       await sb
         .from('character_equipment')
         .update({ exo_left: 0 })
-        .eq('id', outcome.row.id);
-      return { type: 'exo', slot: outcome.slot, newValue: 0 };
+        .eq('id', target.id);
+      target.exo_left = 0;
+      log.push(`${tag}: exo -1`);
+      return 'exo';
     }
-    return { type: 'none', slot: null };
+
+    return false;
   }
 
-  // -------- PREVIEW (includes conditional mitigation) --------
-  async function previewHit(sb, chId, amount) {
-    await ensureExoRows(sb, chId);
-    const rows = await fetchArmorRows(sb, chId);
+  /**
+   * Apply multiple strip hits — drill the first slot, then spill to one other.
+   */
+  async function applyStripHits(sb, rows, hits) {
+    const log = [];
+    let exoHits = 0;
+    let armorHits = 0;
+    let remaining = Math.max(0, Number(hits) || 0);
+    if (!remaining) return { hits: 0, exoHits: 0, armorHits: 0, log: [] };
 
-    const outcome = decideStripOutcome(rows);
-    // Mitigate by 1 ONLY if this hit would strike an ARMOR segment
-    const mitigated =
-      outcome.type === 'armor'
-        ? Math.max(0, Number(amount || 0) - 1)
-        : Math.max(0, Number(amount || 0));
+    let current = pickRandomStripTarget(rows);
+    let movedOnce = false;
 
-    const { t1, t2 } = await loadThresholds(sb, chId);
-    const hpLoss = hpLossFromDamage(mitigated, t1, t2);
+    while (remaining > 0) {
+      if (!current) break;
 
-    return {
-      amount: Number(amount || 0),
-      mitigated,
-      thresholds: { t1, t2 },
-      hpLoss,
-      strip:
-        outcome.type === 'none' ? 'none' : `${outcome.type} (${outcome.slot})`,
-    };
+      const spent = await spendOneStripHit(sb, current, log);
+      if (!spent) {
+        if (movedOnce) break;
+        current = pickRandomStripTarget(
+          rows.filter((r) => r.id !== current?.id)
+        );
+        movedOnce = true;
+        continue;
+      }
+
+      if (spent === 'exo') exoHits += 1;
+      if (spent === 'armor') armorHits += 1;
+
+      remaining -= 1;
+
+      const hasCapacity =
+        Number(current.slots_remaining || 0) > 0 ||
+        Number(current.exo_left || 0) > 0;
+
+      if (!hasCapacity && remaining > 0 && !movedOnce) {
+        current = pickRandomStripTarget(rows.filter((r) => r.id !== current.id));
+        movedOnce = true;
+      }
+    }
+
+    return { hits: log.length, exoHits, armorHits, log };
   }
 
-  // -------- APPLY (commit same outcome; HP uses mitigated) --------
-  async function applyHit(sb, ch, amount) {
+  // -------- APPLY (commit strips scaled to severity; HP uses mitigated) --------
+  async function applyHit(sb, ch, amount, opts = {}) {
     await ensureExoRows(sb, ch.id);
     const rows = await fetchArmorRows(sb, ch.id);
 
-    // Decide target first and stick to it
-    const outcome = decideStripOutcome(rows);
+    const block = rollArmorBlock(rows);
+    const raw = Math.max(0, Number(amount || 0));
+    const mitigated = mitigationFor(raw, block.blocked);
 
-    // Apply mitigation only if outcome is 'armor'
-    const mitigated =
-      outcome.type === 'armor'
-        ? Math.max(0, Number(amount || 0) - 1)
-        : Math.max(0, Number(amount || 0));
-
-    // Compute HP loss from mitigated value
     const { t1, t2 } = await loadThresholds(sb, ch.id);
     const hpLoss = hpLossFromDamage(mitigated, t1, t2);
+    const stripHits = stripHitsFromDamage(mitigated, t1, t2);
 
+    let knockdownResult = { stripped: false };
     if (hpLoss > 0) {
-      const nextHP = Math.max(0, Number(ch.hp_current || 0) - hpLoss);
+      const prevHP = Math.max(0, Number(ch.hp_current || 0));
+      const nextHP = Math.max(0, prevHP - hpLoss);
       await sb
         .from('characters')
         .update({ hp_current: nextHP })
         .eq('id', ch.id);
-      ch.hp_current = nextHP; // keep local in sync
+      ch.hp_current = nextHP;
+
+      knockdownResult =
+        (await App.Logic?.strip?.onHpChanged?.(sb, ch.id, prevHP, nextHP)) ||
+        knockdownResult;
     }
 
-    // Commit the exact strip outcome we decided earlier
-    const strip = await applyChosenStrip(sb, outcome);
+    let stripResult = { hits: 0, exoHits: 0, armorHits: 0, log: [] };
+    if (!knockdownResult.stripped && stripHits > 0 && !opts.skipStrip) {
+      stripResult = await applyStripHits(sb, rows, stripHits);
+
+      if (stripResult.exoHits > 0) {
+        const curExo = Math.max(
+          0,
+          Number(ch.exoskin_slots_remaining ?? 0) - stripResult.exoHits
+        );
+        await sb
+          .from('characters')
+          .update({ exoskin_slots_remaining: curExo })
+          .eq('id', ch.id);
+        ch.exoskin_slots_remaining = curExo;
+      }
+    }
+
+    const blockNote = block.blocked
+      ? `armor blocked −1 (${block.slot || '?'})`
+      : armoredSlots(rows).length
+        ? 'armor did not block'
+        : 'no armor';
 
     return {
-      summary: `Hit ${amount} → ${
-        outcome.type === 'armor'
-          ? 'mitigated ' + mitigated
-          : 'no mitigation (' + mitigated + ')'
-      } → HP -${hpLoss}; strip: ${strip.type}${
-        strip.slot ? ' (' + strip.slot + ')' : ''
+      summary: `Hit ${raw} → ${blockNote} → effective ${mitigated} → HP -${hpLoss}; strips: ${stripResult.hits}${
+        stripResult.log.length ? ` (${stripResult.log.join(' · ')})` : ''
       }`,
       mitigated,
+      armorBlocked: block.blocked,
+      armorBlockSlot: block.slot,
       hpLoss,
-      strip,
+      stripHits,
+      strip: stripResult,
+      knockedDown: !!knockdownResult.stripped,
     };
   }
 
   App.Logic = App.Logic || {};
-  App.Logic.combat = { previewHit, applyHit, hpLossFromDamage };
+  App.Logic.combat = {
+    applyHit,
+    hpLossFromDamage,
+    stripHitsFromDamage,
+    armoredSlots,
+    rollArmorBlock,
+    ARMOR_BLOCK_CHANCE,
+  };
 })(window.App || (window.App = {}));

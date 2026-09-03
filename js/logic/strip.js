@@ -5,7 +5,7 @@
 
   // ------- CONFIG -------
   // How many armor "hits" and HP "hits" each severity produces
-  CFG.stripPoints = CFG.stripPoints || { minor: 1, major: 2, severe: 3 };
+  CFG.stripPoints = CFG.stripPoints || { minor: 1, major: 1, severe: 2 };
   CFG.hpPoints = CFG.hpPoints || { minor: 1, major: 2, severe: 3 };
 
   // 'threshold' = use hpPoints per severity; 'raw' = subtract raw damage from HP
@@ -70,15 +70,6 @@
         .from('character_equipment')
         .update({ slots_remaining: armorLeft })
         .eq('id', target.id);
-
-      // Armor gone -> break the piece (keep ability; convert to exo-only if exo remains)
-      if (armorLeft === 0 && target.item_id) {
-        await sb
-          .from('character_equipment')
-          .update({ item_id: null })
-          .eq('id', target.id);
-        target.item_id = null;
-      }
     }
 
     // 2) Then exo (max 1)
@@ -216,5 +207,49 @@
     setText?.('calcResult', msg);
   }
 
-  App.Logic.strip = { getSeverity, pointsFor, hpLossFor, applyHitFromCalc };
+  /** Strip all clothing when HP hits 0 — bypasses normal armor protection. */
+  async function stripOnKnockdown(sb, characterId) {
+    if (!sb || !characterId) return { ok: false, stripped: false };
+
+    const { error: eqErr } = await sb
+      .from('character_equipment')
+      .update({ exo_left: 0 })
+      .eq('character_id', characterId)
+      .in('slot', ARMOR_SLOTS);
+
+    const { error: chErr } = await sb
+      .from('characters')
+      .update({ exoskin_slots_remaining: 0 })
+      .eq('id', characterId);
+
+    if (eqErr) console.warn('[strip] knockdown equipment failed', eqErr);
+    if (chErr) console.warn('[strip] knockdown exo counter failed', chErr);
+
+    const ch = window.AppState?.character;
+    if (ch?.id === characterId) {
+      ch.exoskin_slots_remaining = 0;
+      App.Features?.equipment?.invalidateCache?.();
+      await window.App?.Features?.equipment?.refresh?.(characterId);
+    }
+
+    return { ok: !eqErr && !chErr, stripped: true };
+  }
+
+  async function onHpChanged(sb, characterId, prevHp, nextHp) {
+    const prev = Math.max(0, Number(prevHp) || 0);
+    const next = Math.max(0, Number(nextHp) || 0);
+    if (next === 0 && prev > 0) {
+      return stripOnKnockdown(sb, characterId);
+    }
+    return { ok: true, stripped: false };
+  }
+
+  App.Logic.strip = {
+    getSeverity,
+    pointsFor,
+    hpLossFor,
+    applyHitFromCalc,
+    stripOnKnockdown,
+    onHpChanged,
+  };
 })(window.App);

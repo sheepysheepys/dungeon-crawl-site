@@ -1,6 +1,9 @@
 {
   "scripts": {
-    "dev": "serve .."
+    "dev": "serve ..",
+    "test": "node scripts/test-all.mjs",
+    "test:unit": "node scripts/test-combat.mjs",
+    "test:live": "node scripts/test-integration.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.53.0"

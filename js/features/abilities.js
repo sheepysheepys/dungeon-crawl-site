@@ -46,23 +46,48 @@
 
     const charLvl = Math.max(1, Number(characterLevel) || 1);
     const classLvl = Math.max(1, Number(classLevel) || 1);
+    const cols = 'source_type, source_name, name, description, level_required';
 
-    const { data, error } = await client
-      .from('source_abilities')
-      .select('source_type, source_name, name, description, level_required');
+    const queries = [];
+    const raceName = (race || '').trim();
+    const className = (cls || '').trim();
 
-    if (error) {
-      // Table may not exist until migration is run — fail quietly.
-      if (error.code !== 'PGRST205' && error.code !== '42P01') {
-        console.warn('[abilities] custom source error', error);
-      }
-      return [];
+    if (raceName) {
+      queries.push(
+        client
+          .from('source_abilities')
+          .select(cols)
+          .eq('source_type', 'race')
+          .ilike('source_name', raceName)
+      );
+    }
+    if (className) {
+      queries.push(
+        client
+          .from('source_abilities')
+          .select(cols)
+          .eq('source_type', 'class')
+          .ilike('source_name', className)
+      );
     }
 
-    const raceKey = (race || '').trim().toLowerCase();
-    const classKey = (cls || '').trim().toLowerCase();
+    if (!queries.length) return [];
 
-    return (data || [])
+    const results = await Promise.all(queries);
+    const data = results.flatMap((r) => {
+      if (r.error) {
+        if (r.error.code !== 'PGRST205' && r.error.code !== '42P01') {
+          console.warn('[abilities] custom source error', r.error);
+        }
+        return [];
+      }
+      return r.data || [];
+    });
+
+    const raceKey = raceName.toLowerCase();
+    const classKey = className.toLowerCase();
+
+    return data
       .filter((row) => {
         const src = (row.source_name || '').trim().toLowerCase();
         const req = Math.max(1, Number(row.level_required) || 1);
@@ -157,10 +182,18 @@
     return section;
   }
 
-  async function render(characterId) {
+  async function render(characterId, { force = false } = {}) {
     const root = document.getElementById('abilitiesList');
     const empty = document.getElementById('abilitiesEmpty');
     if (!root) return;
+
+    if (
+      !force &&
+      window.AppState?._abilitiesRenderedFor === characterId &&
+      root.childElementCount > 0
+    ) {
+      return;
+    }
 
     const char =
       global.AppState?.character ||
@@ -255,6 +288,8 @@
 
     if (empty) empty.style.display = 'none';
     sections.forEach((node) => root.append(node));
+    window.AppState = window.AppState || {};
+    window.AppState._abilitiesRenderedFor = characterId;
   }
 
   App.Features.abilities = { render };

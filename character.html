@@ -26,7 +26,10 @@
         <div class="id-grid id-grid--with-level">
           <label class="field">
             <span class="field-label">Name</span>
-            <span id="charName" class="field-value">—</span>
+            <span class="field-value name-with-badge">
+              <span id="charName">—</span>
+              <span id="vwBadge" class="fun-badge" hidden></span>
+            </span>
           </label>
           <label class="field">
             <span class="field-label">Race</span>
@@ -63,6 +66,23 @@
       <!-- ABILITY SCORES -->
       <section class="box" id="statsCard">
         <span class="label-corner">Abilities</span>
+        <div class="stats-toolbar">
+          <div class="stat-pill">
+            <span class="stat-pill-label">Proficiency</span>
+            <span class="stat-pill-value mono" id="profBonus">—</span>
+          </div>
+          <div class="stat-pill" id="spellDcPill" hidden>
+            <span class="stat-pill-label"
+              >Spell Save DC
+              <span class="muted" id="spellDcStatLabel"></span
+            ></span>
+            <span class="stat-pill-value mono" id="spellSaveDc">—</span>
+          </div>
+          <div class="stat-pill" id="spellAtkPill" hidden>
+            <span class="stat-pill-label">Spell Attack</span>
+            <span class="stat-pill-value mono" id="spellAttackMod">—</span>
+          </div>
+        </div>
         <div class="abilities">
           <div class="ability" data-stat="agility">
             <div class="abbr">Agility</div>
@@ -135,112 +155,128 @@
       <div class="sheet-body">
         <div id="msg" class="muted"></div>
 
-        <!-- ================== TOP GRID ================== -->
+        <!-- ================== COMBAT + VITALS ================== -->
         <div class="top-grid">
-          <!-- HP -->
-          <section class="box" id="hpCard">
-            <span class="label-corner">Health</span>
-            <h3>HP</h3>
-            <div class="row">
-              <div class="big">
-                <span id="hpCurrent">—</span><span class="muted"> / </span
-                ><span id="hpTotal">—</span>
+        <section class="box combat-panel" id="combatPanel">
+          <span class="label-corner">Combat</span>
+          <div class="combat-layout">
+            <div class="combat-hp-block">
+              <div class="combat-hp-readout">
+                <span class="combat-hp-current mono" id="hpCurrent">—</span>
+                <span class="combat-hp-sep muted">/</span>
+                <span class="combat-hp-total mono" id="hpTotal">—</span>
               </div>
-              <div class="spacer"></div>
-              <button class="btn-good" id="btnHpPlus">+1</button>
-              <button class="btn-bad" id="btnHpMinus">-1</button>
-              <button class="btn-accent" id="btnDamageCalc">
-                Damage Calculator
+              <div class="hp-track combat-hp-track">
+                <div class="hp-bar" id="hpBar"></div>
+              </div>
+              <button type="button" class="btn-good btn-compact" id="btnHealHp">
+                +1 Heal
               </button>
             </div>
 
-            <div class="hp-track"><div class="hp-bar" id="hpBar"></div></div>
-
-            <div class="mono muted" style="margin-top: 6px; font-size: 12px">
-              <!-- Damage legend -->
-              <div id="dmgLegend" class="dmg-legend">
+            <div class="combat-hit-block">
+              <label class="hit-field">
+                <span class="hit-field-label">Incoming damage</span>
+                <input
+                  id="hitDamage"
+                  type="number"
+                  min="0"
+                  step="1"
+                  inputmode="numeric"
+                  placeholder="0"
+                />
+              </label>
+              <button type="button" class="btn-bad btn-hit-apply" id="btnApplyHit">
+                Take Hit
+              </button>
+              <div id="hitResult" class="hit-result muted" aria-live="polite"></div>
+              <div class="dmg-legend combat-legend" aria-label="Damage severity bands">
                 <div class="band">
                   <span class="tag tag-light">Light</span>
                   <span class="range">0–<span id="t1Val">7</span></span>
-                  <span class="hp">−1 HP</span>
                 </div>
                 <div class="band">
                   <span class="tag tag-heavy">Heavy</span>
                   <span class="range"
                     ><span id="t2Low">8</span>–<span id="t2Val">14</span></span
                   >
-                  <span class="hp">−2 HP</span>
                 </div>
                 <div class="band">
                   <span class="tag tag-brutal">Brutal</span>
                   <span class="range"><span id="t3Low">15</span>+</span>
-                  <span class="hp">−3 HP</span>
                 </div>
               </div>
             </div>
+          </div>
+          <div class="combat-rest-row">
+            <button id="btnShortRest" class="btn btn-compact">Short Rest</button>
+            <button id="btnLongRest" class="btn btn-compact">Long Rest</button>
+          </div>
+        </section>
 
-            <div class="row rest-row">
-              <button id="btnShortRest" class="btn">Short Rest</button>
-              <button id="btnLongRest" class="btn">Long Rest</button>
+          <section class="box vitals-card" id="armorCard">
+            <span class="label-corner">Clothing</span>
+            <div class="vitals-main">
+              <span class="vitals-big mono" id="layersWorn">0/5 layers worn</span>
+            </div>
+            <span id="exoOn" class="sr-only" aria-hidden="true">0</span>
+            <div class="vitals-meta muted">
+              Stripped: <span id="strippedPieces" class="mono">0</span>
+            </div>
+            <div id="stripFlavor" class="strip-flavor" hidden aria-live="polite"></div>
+
+            <div id="dressViewBar" class="dress-view dress-view--bar">
+              <div class="armor-track vitals-track">
+                <div class="tick"></div>
+                <div class="tick"></div>
+                <div class="tick"></div>
+                <div class="tick"></div>
+                <div class="tick"></div>
+              </div>
+            </div>
+            <div id="dressViewSlots" class="dress-view dress-view--slots" hidden>
+              <div class="dress-slot-grid" id="dressSlotGrid" aria-label="Clothing by slot"></div>
             </div>
           </section>
 
-          <!-- Armor (medium) -->
-          <section class="box medium" id="armorCard">
-            <span class="label-corner">Armor</span>
-            <h3>Active Armor</h3>
-            <div class="row armor-inline">
-              <div>
-                Clothing Level: <span id="exoOn" class="mono chip">0</span>
-                <span class="muted">/ 5</span>
-              </div>
-              <div class="spacer"></div>
-              <div>
-                Pieces Stripped:
-                <span id="strippedPieces" class="mono chip">0</span>
-              </div>
-            </div>
-            <div class="armor-track">
-              <div class="tick"></div>
-              <div class="tick"></div>
-              <div class="tick"></div>
-              <div class="tick"></div>
-              <div class="tick"></div>
-            </div>
-          </section>
-
-          <!-- Evasion (compact) -->
-          <section class="box compact" id="evasionCard">
+          <section class="box vitals-card" id="evasionCard">
             <span class="label-corner">Evasion</span>
-            <div class="meter"><div class="big mono" id="evasion">—</div></div>
-          </section>
-
-          <!-- Hope (compact) -->
-          <section class="box compact" id="hopeCard">
-            <span class="label-corner">Hope</span>
-            <div class="row">
-              <div class="big" id="hopeDots" aria-live="polite">—</div>
-              <div class="spacer"></div>
-              <button id="btnHopePlus" class="btn-good">+</button>
-              <button id="btnHopeMinus" class="btn-bad">−</button>
+            <div class="vitals-main">
+              <span class="vitals-big mono" id="evasion">—</span>
             </div>
-            <div class="muted">Max 5.</div>
           </section>
 
-          <!-- Experience (now in the grid, 2nd row 3rd col) -->
-          <section class="box" id="experienceCard">
-            <span class="label-corner">Experience</span>
+          <section class="box vitals-card vitals-card--hope" id="hopeCard">
+            <span class="label-corner">Hope</span>
+            <div class="hope-top">
+              <div class="vitals-main hope-dots-wrap">
+                <span class="vitals-big" id="hopeDots" aria-live="polite">—</span>
+              </div>
+              <div class="hope-adjust">
+                <button id="btnHopePlus" class="btn-good btn-compact" type="button">+</button>
+                <button id="btnHopeMinus" class="btn-bad btn-compact" type="button">−</button>
+              </div>
+            </div>
+            <details class="hope-spend-panel">
+              <summary>Spend Hope</summary>
+              <div id="hopeSpendList" class="hope-spend-list"></div>
+            </details>
+          </section>
 
+          <details class="box vitals-xp-panel" id="experienceCard">
+            <summary class="vitals-xp-summary">
+              <span class="label-corner">Experience</span>
+              <span>Experience</span>
+            </summary>
             <div class="xp-list" id="xpList">
-              <!-- Filled by JS -->
               <div class="xp-row xp-empty" id="xpSkeleton">
                 <span>Loading…</span><span></span
                 ><span class="xp-notch" aria-hidden="true"></span>
               </div>
             </div>
-          </section>
+          </details>
         </div>
-        <!-- =============== /TOP GRID ================== -->
+        <!-- =============== /COMBAT + VITALS ================== -->
 
         <!-- Now the rest of the sheet content -->
         <section class="box" id="weaponsCard">
@@ -252,23 +288,18 @@
 
         <!-- TABS -->
         <nav class="tabs">
-          <div class="tab active" data-tab="abilities">Abilities</div>
-          <div class="tab" data-tab="equipment">Equipment</div>
+          <div class="tab active" data-tab="equipment">Equipment</div>
           <div class="tab" data-tab="inventory">Inventory</div>
+          <div class="tab" data-tab="abilities">Abilities</div>
           <div class="tab" data-tab="notes">Notes</div>
           <div class="tab" data-tab="viewership">Viewership</div>
           <div class="tab" data-tab="awards">
-            Awards & Loot
+            Awards
             <span id="lootBadge" class="badge" style="display: none">0</span>
           </div>
         </nav>
 
-        <section class="page active" id="page-abilities">
-          <div class="list" id="abilitiesList"></div>
-          <div class="muted" id="abilitiesEmpty">No abilities yet.</div>
-        </section>
-
-        <section class="page" id="page-equipment">
+        <section class="page active" id="page-equipment">
           <div class="grid equip-grid">
             <!-- Left: Silhouette + totals -->
             <section class="box" id="equipmentArmorSilhouette">
@@ -382,6 +413,11 @@
               <div class="muted" id="equipmentEmpty"></div>
             </section>
           </div>
+        </section>
+
+        <section class="page" id="page-abilities">
+          <div class="list" id="abilitiesList"></div>
+          <div class="muted" id="abilitiesEmpty">No abilities yet.</div>
         </section>
 
         <section class="page" id="page-inventory">
@@ -549,6 +585,7 @@
         </section>
 
         <section class="page" id="page-viewership">
+          <div id="vwBadgePanel" class="fun-badge fun-badge--panel" hidden></div>
           <div class="grid stats3">
             <div class="box">
               <span class="label-corner">Live</span>
@@ -570,15 +607,23 @@
         </section>
 
         <section id="page-awards" class="page">
-          <div class="card" style="margin-bottom: 16px">
-            <h3 style="margin: 0 0 8px">Pending Loot Boxes</h3>
+          <div class="card awards-card">
+            <h3 class="awards-card-title">Pending Loot Boxes</h3>
             <div id="lootList" class="list"></div>
           </div>
 
-          <div class="card">
-            <h3 style="margin: 0 0 8px">Achievements</h3>
+          <div class="card awards-card">
+            <h3 class="awards-card-title">Achievements</h3>
             <div id="awardsList" class="list"></div>
           </div>
+
+          <details class="awards-accordion" id="openedLootAccordion">
+            <summary class="awards-accordion-summary">
+              <span>Opened Loot History</span>
+              <span class="awards-accordion-count muted" id="openedLootCount"></span>
+            </summary>
+            <div id="openedLootList" class="list opened-loot-list"></div>
+          </details>
         </section>
       </div>
     </div>
@@ -596,30 +641,6 @@
         <div class="row" style="justify-content: flex-end">
           <button id="btnConfirmRest" class="btn-accent">Confirm</button>
           <button id="btnCloseRestModal">Close</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-backdrop" id="modalBack">
-      <div class="modal">
-        <h3>Damage Calculator</h3>
-        <div class="row" style="justify-content: flex-start">
-          <label
-            >Damage:&nbsp;<input
-              id="calcDamage"
-              type="number"
-              min="0"
-              value="0"
-          /></label>
-        </div>
-        <div id="calcResult" style="margin: 10px 0" class="mono muted">
-          Enter a number and press Calculate.
-        </div>
-        <div class="row">
-          <div class="spacer"></div>
-          <button id="btnCalc" class="btn-accent">Calculate</button>
-          <button id="btnApplyDamage" class="btn-bad">Apply</button>
-          <button id="btnCloseModal">Close</button>
         </div>
       </div>
     </div>
@@ -780,14 +801,19 @@
     <script defer src="/dungeon-crawl-site/js/logic/inventory.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/rests.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/evasion.js"></script>
+    <script defer src="/dungeon-crawl-site/js/logic/proficiency.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/weapons.js"></script>
     <script defer src="/dungeon-crawl-site/js/logic/combat.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/combat-panel.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/hope-shop.js"></script>
 
     <script defer src="/dungeon-crawl-site/js/features/inventory.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/equipment.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/dnd5e-api.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/abilities.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/notes.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/dress-code.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/flavor.js"></script>
     <script defer src="/dungeon-crawl-site/js/features/viewership.js"></script>
     <script
       defer

@@ -1,0 +1,14 @@
+{
+  "_comment": "Copy to tests/test.config.json (gitignored). Use a throwaway PC for optional mutate tests.",
+  "supabaseUrl": "https://fqegrllwoskrfcnmzlod.supabase.co",
+  "supabaseAnonKey": "YOUR_ANON_KEY_FROM_js/config.js",
+  "player": {
+    "email": "test-pc@example.com",
+    "password": "your-test-password"
+  },
+  "dm": {
+    "email": "dm@example.com",
+    "password": "your-dm-password"
+  },
+  "mutate": false
+}

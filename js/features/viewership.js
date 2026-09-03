@@ -41,6 +41,7 @@
       return;
     }
     render(data);
+    await App.Features?.flavor?.applyViewershipBadges?.(sb, chId);
   }
 
   function subscribe(sb, chId) {

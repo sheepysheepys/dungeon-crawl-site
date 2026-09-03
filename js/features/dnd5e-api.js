@@ -114,9 +114,49 @@
     return abilities;
   }
 
+  /** Map SRD ability score index → site stat key. */
+  const ABILITY_TO_STAT = {
+    str: 'strength',
+    dex: 'agility',
+    int: 'knowledge',
+    wis: 'instinct',
+    cha: 'presence',
+  };
+
+  async function fetchClassMeta(className) {
+    const slug = toSlug(className);
+    if (!slug) return null;
+
+    try {
+      const cls = await apiGet(`/api/2014/classes/${slug}`);
+      const savingThrowStats = (cls.saving_throws || [])
+        .map((st) => ABILITY_TO_STAT[st.index])
+        .filter(Boolean);
+
+      let spellcasting = null;
+      if (cls.spellcasting?.spellcasting_ability?.index) {
+        const stat = ABILITY_TO_STAT[cls.spellcasting.spellcasting_ability.index];
+        if (stat) {
+          spellcasting = {
+            stat,
+            level: Number(cls.spellcasting.level) || 1,
+            label: cls.spellcasting.spellcasting_ability.name || stat,
+          };
+        }
+      }
+
+      return { savingThrowStats, spellcasting, className: cls.name || className };
+    } catch (e) {
+      if (e.status !== 404) console.warn('[dnd5e] class meta fetch failed', slug, e);
+      return null;
+    }
+  }
+
   App.Features.dnd5e = {
     toSlug,
+    ABILITY_TO_STAT,
     fetchRaceAbilities,
     fetchClassAbilities,
+    fetchClassMeta,
   };
 })(window);

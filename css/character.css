@@ -210,7 +210,8 @@ body {
 /* ===== SHEET BODY / BOXES ===== */
 .sheet-body {
   padding: 12px;
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 16px;
 }
 .grid {
@@ -728,35 +729,45 @@ textarea {
 }
 .top-grid > .box {
   margin: 0;
-  height: 100%;
 }
 
-/* Row 1 — split in half */
-#hpCard {
+/* Row 1 — Combat left, Clothing right (matched height) */
+.top-grid #combatPanel {
   grid-column: 1 / span 2;
   grid-row: 1;
-  min-height: 232px;
+  display: flex;
+  flex-direction: column;
   padding: 16px;
 }
-#armorCard {
+.top-grid #combatPanel .combat-layout {
+  flex: 1;
+}
+.top-grid #combatPanel .combat-rest-row {
+  margin-top: auto;
+}
+.top-grid #armorCard {
   grid-column: 3 / span 2;
   grid-row: 1;
-  min-height: 232px;
+  display: flex;
+  flex-direction: column;
   padding: 16px;
 }
 
-/* Row 2 — Evasion and Hope equal; Experience wide */
-#evasionCard {
+/* Row 2 — Evasion, Hope, Experience */
+.top-grid #evasionCard {
   grid-column: 1 / span 1;
   grid-row: 2;
+  align-self: start;
 }
-#hopeCard {
+.top-grid #hopeCard {
   grid-column: 2 / span 1;
   grid-row: 2;
+  align-self: start;
 }
-#experienceCard {
+.top-grid #experienceCard {
   grid-column: 3 / span 2;
   grid-row: 2;
+  align-self: start;
 }
 
 .box.compact {
@@ -773,23 +784,23 @@ textarea {
   .top-grid {
     grid-template-columns: 1fr 1fr;
   }
-  #hpCard {
+  .top-grid #combatPanel {
     grid-column: 1 / -1;
     grid-row: 1;
   }
-  #armorCard {
+  .top-grid #armorCard {
     grid-column: 1 / -1;
     grid-row: 2;
   }
-  #experienceCard {
+  .top-grid #experienceCard {
     grid-column: 1 / -1;
     grid-row: 3;
   }
-  #evasionCard {
+  .top-grid #evasionCard {
     grid-column: 1 / 2;
     grid-row: 4;
   }
-  #hopeCard {
+  .top-grid #hopeCard {
     grid-column: 2 / 3;
     grid-row: 4;
   }
@@ -798,26 +809,26 @@ textarea {
   .top-grid {
     grid-template-columns: 1fr;
   }
-  #hpCard {
+  .top-grid #combatPanel {
     grid-row: 1;
   }
-  #armorCard {
+  .top-grid #armorCard {
     grid-row: 2;
   }
-  #experienceCard {
+  .top-grid #experienceCard {
     grid-row: 3;
   }
-  #evasionCard {
+  .top-grid #evasionCard {
     grid-row: 4;
   }
-  #hopeCard {
+  .top-grid #hopeCard {
     grid-row: 5;
   }
-  #hpCard,
-  #armorCard,
-  #experienceCard,
-  #evasionCard,
-  #hopeCard {
+  .top-grid #combatPanel,
+  .top-grid #armorCard,
+  .top-grid #experienceCard,
+  .top-grid #evasionCard,
+  .top-grid #hopeCard {
     grid-column: 1 / -1;
   }
 }
@@ -1322,6 +1333,24 @@ button.btn-tiny,
   padding: 8px 0;
   border-bottom: 1px dashed var(--line2, rgba(255, 255, 255, 0.12));
 }
+.inv-row--equippable {
+  cursor: pointer;
+  border-radius: 8px;
+  padding: 8px;
+  margin: 0 -8px;
+  transition: background 0.12s ease;
+}
+.inv-row--equippable:hover {
+  background: rgba(155, 193, 255, 0.06);
+}
+.inv-row--busy {
+  opacity: 0.6;
+  pointer-events: none;
+}
+.btn-equip-slot {
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
 .inv-row:last-child {
   border-bottom: none;
 }
@@ -1370,4 +1399,362 @@ button.btn-tiny,
 .silhouette .overlay .slot-region.state-none {
   fill: var(--none-color) !important;
   stroke: var(--line) !important;
+}
+
+/* ===== COMBAT PANEL + VITALS (facelift) ===== */
+#msg {
+  min-height: 1.25em;
+  margin-bottom: 8px;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  font-size: 13px;
+}
+#msg:not(:empty) {
+  border-color: rgba(155, 193, 255, 0.35);
+  background: rgba(155, 193, 255, 0.08);
+  color: #dce8ff;
+}
+
+.combat-panel {
+  padding: 14px 16px;
+}
+.combat-layout {
+  display: grid;
+  grid-template-columns: minmax(140px, 200px) 1fr;
+  gap: 16px;
+  align-items: stretch;
+}
+.combat-hp-readout {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.combat-hp-current {
+  font-size: 42px;
+  line-height: 1;
+  font-weight: 700;
+  color: #f0f4ff;
+}
+.combat-hp-total {
+  font-size: 22px;
+  color: var(--muted);
+}
+.combat-hp-track {
+  margin-bottom: 10px;
+}
+.btn-compact {
+  padding: 5px 10px;
+  font-size: 12px;
+  border-radius: 8px;
+}
+.combat-hit-block {
+  display: grid;
+  gap: 8px;
+}
+.hit-field {
+  display: grid;
+  gap: 4px;
+}
+.hit-field-label {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+#hitDamage {
+  width: 100%;
+  font-size: 20px;
+  padding: 8px 10px;
+}
+.btn-hit-apply {
+  width: 100%;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 700;
+  border-radius: 10px;
+}
+.hit-result {
+  font-size: 12px;
+  min-height: 1.2em;
+}
+.hit-result--active {
+  color: #ffd4a8;
+}
+.combat-legend {
+  margin-top: 2px;
+}
+.combat-rest-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--line2);
+}
+
+
+.vitals-card {
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.vitals-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.vitals-big {
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 700;
+}
+.vitals-sub,
+.vitals-meta {
+  font-size: 12px;
+}
+.vitals-track {
+  margin-top: auto;
+}
+.hope-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.hope-adjust {
+  display: flex;
+  gap: 4px;
+}
+.hope-spend-panel {
+  margin-top: 4px;
+}
+.hope-spend-panel > summary {
+  cursor: pointer;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  list-style: none;
+}
+.hope-spend-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.hope-spend-list {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  max-height: 220px;
+  overflow: auto;
+}
+.hope-spend-btn {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid var(--line2);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  color: var(--text);
+  padding: 6px 8px;
+  font-size: 11px;
+  cursor: pointer;
+}
+.hope-spend-btn:hover:not(:disabled) {
+  border-color: rgba(155, 193, 255, 0.45);
+  background: rgba(155, 193, 255, 0.06);
+}
+.hope-spend-btn--disabled,
+.hope-spend-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.hope-spend-cost {
+  flex-shrink: 0;
+  color: #b8e8c4;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.vitals-xp-panel {
+  padding: 0;
+  margin-bottom: 12px;
+}
+.vitals-xp-panel > summary {
+  list-style: none;
+  cursor: pointer;
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.vitals-xp-panel > summary::-webkit-details-marker {
+  display: none;
+}
+.vitals-xp-summary {
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.vitals-xp-panel .xp-list {
+  padding: 0 12px 12px;
+  max-height: 240px;
+  overflow: auto;
+}
+
+.tabs {
+  z-index: 5;
+  backdrop-filter: blur(6px);
+  background: rgba(11, 12, 15, 0.92);
+  border-bottom: 1px solid var(--line2);
+}
+.tab {
+  font-size: 13px;
+  transition: background 0.15s ease;
+}
+.tab.active {
+  background: #1a2233;
+  border-color: rgba(155, 193, 255, 0.35);
+  color: #eef3ff;
+}
+
+#weaponsCard {
+  margin-bottom: 12px;
+}
+#weaponsCard h3 {
+  margin: 0 0 8px;
+  font-size: 14px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+@media (max-width: 980px) {
+  .combat-layout {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 640px) {
+  .sheet-header--inline {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Short rest — grey out unavailable options */
+.rest-option--unavail {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.rest-option--unavail input {
+  pointer-events: none;
+}
+.rest-unavail-note {
+  display: block;
+  font-size: 11px;
+  margin-top: 2px;
+  margin-left: 22px;
+}
+
+/* Fun badges + flavor */
+.name-with-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.fun-badge {
+  display: inline-block;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  white-space: nowrap;
+}
+.fun-badge--crown {
+  background: rgba(255, 215, 100, 0.12);
+  border-color: rgba(255, 215, 100, 0.45);
+  color: #ffe8a8;
+}
+.fun-badge--underdog {
+  background: rgba(120, 200, 120, 0.1);
+  border-color: rgba(120, 200, 120, 0.4);
+  color: #b8e8c4;
+}
+.fun-badge--panel {
+  margin-bottom: 12px;
+  font-size: 13px;
+  padding: 8px 12px;
+}
+.hit-result--flavor {
+  font-style: italic;
+  color: #ffd89a;
+}
+.strip-flavor {
+  margin-top: 8px;
+  font-size: 12px;
+  font-style: italic;
+  color: #ffb8b8;
+  line-height: 1.35;
+}
+.strip-flavor--active {
+  color: #ffd89a;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.dress-slot-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 6px;
+  margin-top: 4px;
+}
+.dress-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.dress-slot-pip {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  background: rgba(0, 0, 0, 0.25);
+}
+.dress-slot--on .dress-slot-pip {
+  background: rgba(155, 193, 255, 0.75);
+  border-color: rgba(155, 193, 255, 0.45);
+  box-shadow: 0 0 8px rgba(155, 193, 255, 0.25);
+}
+.dress-slot--off .dress-slot-pip {
+  background: rgba(255, 120, 120, 0.35);
+  border-color: rgba(255, 120, 120, 0.4);
+}
+.dress-slot--off .dress-slot-label {
+  opacity: 0.65;
+}
+.hope-card--max .hope-dots-wrap {
+  text-shadow: 0 0 12px rgba(255, 220, 120, 0.35);
+}
+.hope-card--max .label-corner::after {
+  content: ' ✦';
+  color: #ffe8a8;
 }

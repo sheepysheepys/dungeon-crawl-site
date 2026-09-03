@@ -28,6 +28,31 @@
 
     <div id="dmStatus" class="muted page-status"></div>
 
+    <details class="dm-quick-grant" id="dmQuickGrant">
+      <summary>Quick grants</summary>
+      <div class="quick-grant-body">
+        <div class="quick-grant-row">
+          <button type="button" id="btnQuickRepeatAch" class="btn-accent">
+            Repeat last achievement → selected
+          </button>
+          <button type="button" id="btnQuickRepeatBox" class="btn-good">
+            Repeat last loot box → selected
+          </button>
+        </div>
+        <div class="quick-grant-presets" id="dmGrantPresets"></div>
+        <div class="field-row quick-grant-fields">
+          <input id="dmQuickTitle" type="text" placeholder="Achievement title…" />
+          <button type="button" id="btnQuickGrantAch">🏆 Selected</button>
+          <button type="button" id="btnQuickGrantBox">📦 Selected</button>
+        </div>
+        <label class="inline muted">
+          <input type="checkbox" id="dmKeepGrantForm" checked />
+          Keep title after grant
+        </label>
+        <div class="muted quick-grant-hint" id="dmQuickGrantHint"></div>
+      </div>
+    </details>
+
     <div id="dmApp" class="layout">
       <!-- Roster doubles as the character picker -->
       <aside class="roster">
@@ -66,6 +91,10 @@
           <button class="tab is-active" type="button" data-tab="overview">
             Overview
           </button>
+          <button class="tab" type="button" data-tab="party">Party</button>
+          <button class="tab" type="button" data-tab="initiative">
+            Initiative
+          </button>
           <button class="tab" type="button" data-tab="edit">Edit Sheet</button>
           <button class="tab" type="button" data-tab="grants">Grants</button>
           <button class="tab" type="button" data-tab="viewership">
@@ -77,7 +106,46 @@
         </nav>
 
         <section class="tabpane is-active" id="pane-overview">
-          <div id="dmOverview" class="muted">Select a character.</div>
+          <div id="dmOverview" class="overview-root">Select a character.</div>
+        </section>
+
+        <section class="tabpane" id="pane-party">
+          <div class="party-toolbar btn-row">
+            <button id="btnPartyRefresh" type="button">Refresh</button>
+          </div>
+          <div class="clothing-display-mode">
+            <span class="muted clothing-display-label">Clothing display (all sheets)</span>
+            <div class="clothing-display-toggle btn-row">
+              <button type="button" id="btnClothingBar" class="is-active" data-mode="bar">
+                Summary bar
+              </button>
+              <button type="button" id="btnClothingSlots" data-mode="slots">
+                By slot
+              </button>
+            </div>
+          </div>
+          <div id="dmPartyMsg" class="muted" style="margin-bottom:8px"></div>
+          <div id="dmPartyBoard" class="muted">Loading…</div>
+        </section>
+
+        <section class="tabpane" id="pane-initiative">
+          <div class="init-toolbar btn-row">
+            <button id="btnInitRollAll" type="button">Roll all PCs</button>
+            <button id="btnInitAddPc" type="button">Add selected PC</button>
+            <button id="btnInitClear" type="button">Clear tracker</button>
+          </div>
+          <div class="init-add-npc field-row">
+            <input id="initNpcName" type="text" placeholder="NPC name…" autocomplete="off" />
+            <input id="initNpcVal" type="number" placeholder="Init" step="1" style="width:80px" />
+            <button id="btnInitAddNpc" type="button">Add NPC</button>
+          </div>
+          <div id="dmInitMsg" class="muted" style="margin:8px 0"></div>
+          <div id="dmInitCurrent" class="init-current muted">No encounter loaded.</div>
+          <div class="btn-row init-turn-row">
+            <button id="btnInitPrev" type="button">← Previous</button>
+            <button id="btnInitNext" class="btn-accent" type="button">Next →</button>
+          </div>
+          <ol id="dmInitList" class="init-list"></ol>
         </section>
 
         <section class="tabpane" id="pane-edit">
@@ -91,6 +159,13 @@
             <div class="field-row">
               <label>Character level <input id="dmEdLevel" type="number" min="1" step="1" /></label>
               <label>Class level <input id="dmEdClassLevel" type="number" min="1" step="1" /></label>
+              <label>
+                Clothing template
+                <select id="dmEdClothingTemplate">
+                  <option value="extra">Extra layer</option>
+                  <option value="bra">Bra layer</option>
+                </select>
+              </label>
             </div>
 
             <div class="section-label">Vitals</div>
@@ -139,6 +214,9 @@
 
             <div class="btn-row end">
               <button id="btnEdReload" type="button">Reload</button>
+              <button id="btnEdRestoreClothing" type="button">
+                Restore clothing (5/5)
+              </button>
               <button id="btnEdSave" class="btn-accent" type="submit">Save changes</button>
             </div>
             <div id="dmEditMsg" class="muted"></div>
@@ -148,6 +226,17 @@
         <section class="tabpane" id="pane-grants">
           <div class="stack">
             <div class="field-row">
+              <label>
+                Box type
+                <select id="dmBoxType">
+                  <option value="weapon">Weapon</option>
+                  <option value="armor">Armor</option>
+                  <option value="consumable">Consumable</option>
+                  <option value="trinket">Trinket</option>
+                  <option value="gold">Gold</option>
+                  <option value="general">General (mixed)</option>
+                </select>
+              </label>
               <label>
                 Rarity
                 <select id="dmRarity">
@@ -264,6 +353,8 @@
       defer
       src="/dungeon-crawl-site/js/supabase-client.js?v=dm2"
     ></script>
+    <script defer src="/dungeon-crawl-site/js/features/dress-code.js"></script>
+    <script defer src="/dungeon-crawl-site/js/features/flavor.js"></script>
     <script defer src="/dungeon-crawl-site/js/dm.js"></script>
   </body>
 </html>

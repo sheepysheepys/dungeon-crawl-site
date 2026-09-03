@@ -76,6 +76,96 @@
       #page-awards .rarity-epic      { background:#2a174b; color:#e4d3ff; border-color:#3a1f68 }
       #page-awards .rarity-legendary { background:#4a2e00; color:#ffe7b3; border-color:#6b4300 }
 
+      #page-awards .awards-card {
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 10px;
+        padding: 10px 12px;
+        background: rgba(255,255,255,.04);
+        margin-bottom: 12px;
+      }
+      #page-awards .awards-card-title {
+        margin: 0 0 8px;
+        font-size: 14px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: #cfd6ea;
+      }
+      #page-awards .awards-accordion {
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 10px;
+        background: rgba(255,255,255,.03);
+        overflow: hidden;
+      }
+      #page-awards .awards-accordion-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 10px 12px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 14px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: #cfd6ea;
+      }
+      #page-awards .awards-accordion-summary::-webkit-details-marker { display: none; }
+      #page-awards .awards-accordion-summary::before {
+        content: '▸';
+        margin-right: 8px;
+        color: #9bc1ff;
+        transition: transform .15s ease;
+      }
+      #page-awards .awards-accordion[open] > .awards-accordion-summary::before {
+        transform: rotate(90deg);
+        display: inline-block;
+      }
+      #page-awards .opened-loot-list {
+        padding: 0 12px 12px;
+        max-height: 320px;
+        overflow: auto;
+      }
+      #page-awards .opened-box {
+        border: 1px solid rgba(255,255,255,.1);
+        border-radius: 8px;
+        background: rgba(255,255,255,.03);
+        margin-top: 8px;
+      }
+      #page-awards .opened-box:first-child { margin-top: 0; }
+      #page-awards .opened-box-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        padding: 8px 10px;
+        cursor: pointer;
+        list-style: none;
+        font-size: 13px;
+      }
+      #page-awards .opened-box-summary::-webkit-details-marker { display: none; }
+      #page-awards .opened-box-summary::before {
+        content: '▸';
+        margin-right: 6px;
+        color: #8ea0c7;
+        font-size: 11px;
+      }
+      #page-awards .opened-box[open] > .opened-box-summary::before {
+        transform: rotate(90deg);
+        display: inline-block;
+      }
+      #page-awards .opened-box-preview {
+        color: #a6adbb;
+        font-size: 12px;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        max-width: 42ch;
+      }
+      #page-awards .opened-box-body {
+        padding: 0 10px 10px;
+        border-top: 1px dashed rgba(255,255,255,.1);
+      }
+
       #page-awards .list .row { padding:4px 0; border-bottom:1px dashed rgba(255,255,255,.12) }
       #page-awards .list .row:last-child { border-bottom:none }
       #page-awards .muted { color:#a6adbb; font-size:12px }
@@ -260,7 +350,7 @@
         .order("awarded_at", { ascending: false }),
       sb
         .from("loot_boxes")
-        .select("id,rarity,label,status,created_at,opened_at,contents")
+        .select("id,rarity,label,box_type,status,created_at,opened_at,contents")
         .eq("character_id", characterId)
         .order("created_at", { ascending: false }),
     ]);
@@ -306,32 +396,38 @@
       .join("");
   }
 
-  function ensureOpenedSection() {
-    const awardsPage = $("#page-awards");
-    if (!awardsPage) return null;
-    let openedCard = awardsPage.querySelector("#openedLootCard");
-    if (!openedCard) {
-      openedCard = document.createElement("div");
-      openedCard.className = "card";
-      openedCard.id = "openedLootCard";
-      openedCard.style.marginBottom = "16px";
-      openedCard.innerHTML = `<h3 style="margin:0 0 8px">Opened Loot Boxes</h3><div id="openedLootList" class="list"></div>`;
-      const achCard = awardsPage.querySelector(".card:nth-of-type(2)");
-      if (achCard) awardsPage.insertBefore(openedCard, achCard);
-      else awardsPage.appendChild(openedCard);
-    }
-    return openedCard.querySelector("#openedLootList");
+  function boxTitle(b) {
+    return (
+      b.label ||
+      `${(b.box_type || 'general').replace(/_/g, ' ')} ${b.rarity} box`
+    ).replace(/[<>&]/g, '');
+  }
+
+  function revealedItems(b) {
+    return Array.isArray(b.contents?.revealed) ? b.contents.revealed : [];
+  }
+
+  function itemPreview(items, max = 2) {
+    if (!items.length) return 'No snapshot';
+    const names = items.slice(0, max).map((it) => {
+      const name = it.item_name ?? `Item ${it.item_id}`;
+      const qty = Number(it.qty ?? 1);
+      return qty > 1 ? `${name} x${qty}` : name;
+    });
+    const extra = items.length > max ? ` +${items.length - max} more` : '';
+    return `${names.join(', ')}${extra}`;
   }
 
   function renderLoot(boxes) {
     const pendingWrap = document.getElementById("lootList");
-    const openedWrap = ensureOpenedSection();
+    const openedWrap = document.getElementById("openedLootList");
+    const openedAccordion = document.getElementById("openedLootAccordion");
+    const openedCountEl = document.getElementById("openedLootCount");
     const badge = document.getElementById("lootBadge");
 
     const unopened = (boxes || []).filter((b) => b.status === "unopened");
     const opened = (boxes || []).filter((b) => b.status === "opened");
 
-    // Badge
     if (badge) {
       if (unopened.length > 0) {
         badge.textContent = String(unopened.length);
@@ -342,7 +438,12 @@
       }
     }
 
-    // ----- Unopened list (unchanged) -----
+    if (openedCountEl) {
+      openedCountEl.textContent = opened.length
+        ? `(${opened.length})`
+        : '';
+    }
+
     if (pendingWrap) {
       if (!unopened.length) {
         pendingWrap.innerHTML = `<div class="muted">No unopened boxes.</div>`;
@@ -352,14 +453,10 @@
             (b) => `
         <div class="row" data-loot-row="${b.id}">
           <div>
-            <div><strong>${(
-              b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-            ).replace(/[<>&]/g, "")}</strong></div>
+            <div><strong>${boxTitle(b)}</strong></div>
             <div class="muted">${fmt(b.created_at)}</div>
           </div>
-          <div><button class="btn btn-accent" data-open-loot="${
-            b.id
-          }">Open</button></div>
+          <div><button class="btn btn-accent" data-open-loot="${b.id}">Open</button></div>
         </div>
       `,
           )
@@ -367,20 +464,16 @@
       }
     }
 
-    // ----- Opened list (header shows only box label once; items only inside dropdown) -----
     if (openedWrap) {
       if (!opened.length) {
         openedWrap.innerHTML = `<div class="muted">No opened boxes yet.</div>`;
+        if (openedAccordion) openedAccordion.open = false;
       } else {
         openedWrap.innerHTML = opened
           .map((b) => {
-            const revealed = Array.isArray(b.contents?.revealed)
-              ? b.contents.revealed
-              : [];
-            const boxTitle = (
-              b.label || `${b.rarity[0].toUpperCase() + b.rarity.slice(1)} Box`
-            ).replace(/[<>&]/g, "");
-
+            const revealed = revealedItems(b);
+            const title = boxTitle(b);
+            const preview = itemPreview(revealed);
             const chips = revealed
               .map((it) => {
                 const name =
@@ -397,52 +490,24 @@
               })
               .join("");
 
-            const id = `opened-${b.id}`;
             return `
-          <div id="${id}" class="row expandable" data-expand="${id}" role="button" aria-expanded="false"
-               style="flex-direction:column; align-items:stretch;">
-            <div class="row" style="justify-content:space-between; border-bottom:none; padding:0;">
-              <div>
-                <strong>${boxTitle}</strong>
-                <span class="chev" aria-hidden="true"></span>
-                <span class="muted openhide-label" style="margin-left:6px">Open</span>
-              </div>
-              <div class="muted">${fmt(b.opened_at || b.created_at)}</div>
-            </div>
-
-            <!-- No summary line here anymore -->
-
-            <!-- full details (chips), hidden until expanded) -->
-            <div class="details" style="display:none; margin-top:6px">
+          <details class="opened-box">
+            <summary class="opened-box-summary">
+              <span><strong>${title}</strong></span>
+              <span class="opened-box-preview">${preview.replace(/[<>&]/g, "")}</span>
+              <span class="muted">${fmt(b.opened_at || b.created_at)}</span>
+            </summary>
+            <div class="opened-box-body">
               <div class="loot-chips">
                 ${chips || `<span class="muted">No snapshot found.</span>`}
               </div>
             </div>
-          </div>
-        `;
+          </details>`;
           })
           .join("");
-
-        // expand/collapse
-        openedWrap.querySelectorAll("[data-expand]").forEach((row) => {
-          row.addEventListener("click", (e) => {
-            if (e.target.closest("button,a")) return;
-            const details = row.querySelector(".details");
-            const label = row.querySelector(".openhide-label");
-            const chev = row.querySelector(".chev");
-            const isOpen = details.style.display !== "none";
-            details.style.display = isOpen ? "none" : "block";
-            row.classList.toggle("open", !isOpen);
-            row.setAttribute("aria-expanded", !isOpen ? "true" : "false");
-            if (label) label.textContent = isOpen ? "Open" : "Hide";
-            if (chev)
-              chev.style.transform = isOpen ? "rotate(0deg)" : "rotate(90deg)";
-          });
-        });
       }
     }
 
-    // Wire Open buttons (unchanged)
     if (pendingWrap) {
       pendingWrap.querySelectorAll("[data-open-loot]").forEach((btn) => {
         btn.addEventListener("click", async () => {

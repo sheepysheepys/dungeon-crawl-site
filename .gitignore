@@ -1,5 +1,6 @@
 node_modules/
 .env
+tests/test.config.json
 .DS_Store
 firebase.json
 *.log

@@ -144,26 +144,42 @@
   }
 
   async function fullRepairAllEquippedArmor(sb, chId) {
-    // Load equipped armor with max values
-    const { data: eqp } = await sb
+    const { data: eqp, error } = await sb
       .from('character_equipment')
-      .select('id, slot, item_id, item:items(armor_value)')
+      .select('id, slot, item_id, slots_remaining, item:items(armor_value)')
       .eq('character_id', chId)
       .in('slot', ARMOR_SLOTS);
 
+    if (error) {
+      console.warn('[rests] full repair fetch failed', error);
+      return 0;
+    }
+
+    let repaired = 0;
     for (const r of eqp || []) {
       const max = Number(r?.item?.armor_value || 0);
-      if (r.item_id && max > 0) {
-        await sb
-          .from('character_equipment')
-          .update({ slots_remaining: max })
-          .eq('id', r.id);
+      if (!r.item_id || max <= 0) continue;
+
+      const cur = Number(r.slots_remaining || 0);
+      if (cur >= max) continue;
+
+      const { error: upErr } = await sb
+        .from('character_equipment')
+        .update({ slots_remaining: max })
+        .eq('id', r.id);
+      if (upErr) {
+        console.warn('[rests] full repair update failed', upErr);
+        continue;
       }
+      repaired += 1;
     }
+    return repaired;
   }
 
   App.Logic = App.Logic || {};
   App.Logic.rests = {
+    restoreOneExo,
+    restoreAllExo,
     async applyShortRest(sb, ch, opts) {
       const out = [];
       const chId = ch.id;
@@ -231,25 +247,14 @@
         out.push(`HP → max`);
       }
 
-      // LONG REST REPAIRS
-      // If the UI checkbox "Repair equipped armor" is checked, pass opts.repairEquippedArmor === true
-      // → Open Repair Bench with cap = Infinity (repairs ALL broken equipped pieces, auto or manual).
-      if (opts.repairEquippedArmor) {
-        const opened = openRepairBench({
-          cap: Infinity,
-          equippedOnly: true,
-          allowUpTier: false,
-          allowLegendary: false,
-        });
-        if (opened)
-          out.push(
-            'Repair Bench: all equipped broken armor available for repair'
-          );
-      }
-      // Otherwise, if you still want a pure instant full repair fallback:
-      else if (opts.repairAll) {
-        await fullRepairAllEquippedArmor(sb, chId);
-        out.push(`Armor fully repaired`);
+      // Long rest: instant full repair of all equipped armor segments.
+      if (opts.repairAll || opts.repairEquippedArmor) {
+        const repaired = await fullRepairAllEquippedArmor(sb, chId);
+        out.push(
+          repaired
+            ? `Armor fully repaired (${repaired} piece${repaired === 1 ? '' : 's'})`
+            : 'Armor already at full protection'
+        );
       }
 
       // Hope +2
@@ -267,6 +272,10 @@
       out.push(`Exo restored (all slots)`);
 
       await reloadCharacter(sb, chId);
+
+      App.Features?.equipment?.invalidateCache?.();
+      window.dispatchEvent(new CustomEvent('equipment:refresh'));
+
       return out;
     },
   };

@@ -217,14 +217,16 @@
           }">+1</button>
           ${
             equippable
-              ? `<button class="btn-tiny btn-accent" data-action="equip" data-line="${r.id}">Equip</button>`
+              ? `<button class="btn-tiny btn-accent btn-equip-slot" data-action="equip" data-line="${r.id}" title="Equip to ${cap(it.slot)}">→ ${cap(it.slot)}</button>`
               : ``
           }
         </div>
       `;
 
       return `
-        <div class="inv-row" data-line="${r.id}">
+        <div class="inv-row${equippable ? ' inv-row--equippable' : ''}" data-line="${r.id}"${
+          equippable ? ` title="Click row to equip to ${cap(it.slot)}"` : ''
+        }>
           <div class="inv-main">
             <span class="inv-name" title="${desc}">${name}</span>
             <span class="inv-meta">${meta}</span>
@@ -256,13 +258,27 @@
 
     // actions
     root.querySelectorAll('button[data-action="equip"]').forEach((btn) => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const lineId = btn.getAttribute('data-line');
         btn.disabled = true;
         try {
           await handlers.onEquip?.(lineId);
         } finally {
           btn.disabled = false;
+        }
+      });
+    });
+
+    root.querySelectorAll('.inv-row--equippable').forEach((row) => {
+      row.addEventListener('click', async (e) => {
+        if (e.target.closest('button')) return;
+        const lineId = row.getAttribute('data-line');
+        row.classList.add('inv-row--busy');
+        try {
+          await handlers.onEquip?.(lineId);
+        } finally {
+          row.classList.remove('inv-row--busy');
         }
       });
     });
